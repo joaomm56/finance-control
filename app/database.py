@@ -1,10 +1,10 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+import os
+from supabase import create_client, Client
+from dotenv import load_dotenv
 
-DATABASE_URL = "sqlite:///finance.db"
+load_dotenv()
 
-engine = create_engine(DATABASE_URL, echo=True)
+url: str = os.getenv("SUPABASE_URL")
+key: str = os.getenv("SUPABASE_KEY")
 
-SessionLocal = sessionmaker(bind=engine)
-
-Base = declarative_base()
+supabase: Client = create_client(url, key)
