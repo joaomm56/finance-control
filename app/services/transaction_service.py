@@ -1,6 +1,6 @@
 from datetime import datetime
 from services.account_service import AccountService
-from services.budget_service import check_budget
+# from services.budget_service import check_budget
 
 
 class TransactionService:
@@ -10,6 +10,10 @@ class TransactionService:
     def __init__(self, supabase_client, account_service: AccountService):
         self.supabase = supabase_client
         self.account_service = account_service
+        self.budget_service = None
+
+    def set_budget_service(self, budget_service):
+        self.budget_service = budget_service
 
     # ==========================================================
     # region Validations
@@ -44,8 +48,8 @@ class TransactionService:
             raise Exception("Account not found or does not belong to user.")
 
         # Budget check for expenses
-        if tx_type == "expense":
-            check_budget(user_id, category, amount)
+        if tx_type == "expense" and self.budget_service:
+            self.budget_service.check_budget(user_id, category, amount)
 
         # Insert transaction
         data = {

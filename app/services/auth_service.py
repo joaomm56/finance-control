@@ -4,10 +4,10 @@ from database import supabase
 
 class AuthService:
 
-    def __init__(self, supabase_client, max_login_attempts=5):
+    def __init__(self, supabase_client, max_attempts=4):
         self.supabase = supabase_client
-        self.max_login_attempts = max_login_attempts
-        self.login_attempts = 0
+        self.max_attempts = max_attempts
+        self.attempts = 0
 
     # ==========================================================
     # region Validations
@@ -130,11 +130,14 @@ class AuthService:
                     user = self.supabase.table("profiles") \
                         .select("email") \
                         .eq("username", identifier) \
-                        .single()
-
+                        .single() \
+                        .execute()
+                    
                     if not user.data:
                         print("Username not found.")
                         self.attempts += 1
+                        remaining = self.max_attempts - self.attempts
+                        print(f"Remaining attempts: {remaining}\n")
                         continue
 
                     response = self.supabase.auth.sign_in_with_password({
@@ -145,9 +148,11 @@ class AuthService:
                 if response.session:
                     print(f"Login successful, Welcome {identifier}.")
                     return response.session
+                else:
+                    print("Invalid email/username or password.")
 
-            except Exception:
-                print("Invalid email/username or password.")
+            except Exception as e:
+                print(f"DEBUG ERROR: {e}")
 
             self.attempts += 1
             remaining = self.max_attempts - self.attempts

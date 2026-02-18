@@ -1,10 +1,10 @@
 from datetime import datetime
-from services.transaction_service import TransactionService
+# from services.transaction_service import TransactionService
 
 
 class BudgetService:
 
-    def __init__(self, supabase_client, transaction_service: TransactionService):
+    def __init__(self, supabase_client, transaction_service: "TransactionService"):
         self.supabase = supabase_client
         self.transaction_service = transaction_service
 
