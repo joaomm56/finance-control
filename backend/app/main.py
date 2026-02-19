@@ -12,7 +12,10 @@ app = FastAPI(
 # ==========================================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://finance-control-axh4.onrender.com"],  # React dev server
+    allow_origins=[
+        "https://finance-control-v1-4ofyguq32-joao-murtas-projects.vercel.app",
+        "http://localhost:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
