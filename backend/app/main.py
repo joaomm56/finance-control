@@ -13,7 +13,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://finance-control-v1-4ofyguq32-joao-murtas-projects.vercel.app",
+        "https://finance-control-v1-9s5llblln-joao-murtas-projects.vercel.app/",
         "http://localhost:5173"
     ],
     allow_credentials=True,
