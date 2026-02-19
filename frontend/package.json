@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-  "build": "npx vite build",
-  "dev": "npx vite",
-  "preview": "npx vite preview"
+  "build": "npx --yes vite@latest build",
+  "dev": "npx --yes vite@latest",
+  "preview": "npx --yes vite@latest preview"
   },
   "dependencies": {
     "react": "^18.3.1",
