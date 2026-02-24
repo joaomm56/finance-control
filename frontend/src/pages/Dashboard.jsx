@@ -121,38 +121,120 @@ function CreateBudgetModal({ onClose, onCreated }) {
   )
 }
 
+const EXPENSE_CATS = ['Food & Drink','Transport','Housing','Health','Education','Entertainment','Shopping','Utilities','Travel','Gym','Insurance','Clothing','Electronics','Gifts','Other']
+const INCOME_CATS  = ['Salary','Freelance','Investment','Bonus','Rental','Refund','Other']
+
+function CategorySelect({ type, value, onChange }) {
+  const [custom, setCustom] = useState(false)
+  const cats = type === 'income' ? INCOME_CATS : type === 'transfer' ? ['Transfer'] : EXPENSE_CATS
+  const userCats = JSON.parse(localStorage.getItem('categories') || '[]')
+    .filter(c => c.type === type || c.type === 'both')
+    .map(c => c.name)
+  const allCats = [...cats, ...userCats]
+  if (custom) return (
+    <div style={{ display: 'flex', gap: 8 }}>
+      <input style={{ ...cs.input, flex: 1 }} placeholder="Custom category..." value={value} onChange={e => onChange(e.target.value)} autoFocus />
+      <button type="button" onClick={() => setCustom(false)} style={{ ...cs.ghostBtn, padding: '8px 12px', fontSize: 12 }}>List</button>
+    </div>
+  )
+  return (
+    <div style={{ display: 'flex', gap: 8 }}>
+      <select style={{ ...cs.input, flex: 1 }} value={allCats.includes(value) ? value : ''} onChange={e => onChange(e.target.value)} required>
+        <option value="" disabled>Select category...</option>
+        {allCats.map(c => <option key={c} value={c}>{c}</option>)}
+      </select>
+      <button type="button" onClick={() => setCustom(true)} style={{ ...cs.ghostBtn, padding: '8px 12px', fontSize: 12 }}>Custom</button>
+    </div>
+  )
+}
+
 function CreateTransactionModal({ accounts, onClose, onCreated }) {
-  const [form, setForm] = useState({ account_id: accounts[0]?.id || '', type: 'expense', category: '', amount: '', description: '' })
+  const [form, setForm] = useState({ account_id: accounts[0]?.id || '', type: 'expense', category: '', amount: '', description: '', to_account_id: accounts[1]?.id || accounts[0]?.id || '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
   const handleSubmit = async (e) => {
     e.preventDefault(); setLoading(true); setError('')
     try {
-      await createTransaction({ account_id: parseInt(form.account_id), type: form.type, category: form.category, amount: parseFloat(form.amount), description: form.description || null })
+      if (form.type === 'transfer') {
+        if (form.account_id === String(form.to_account_id)) { setError('Origin and destination accounts must be different.'); setLoading(false); return }
+        await createTransaction({ account_id: parseInt(form.account_id),    type: 'expense', category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer to ${accounts.find(a=>a.id===parseInt(form.to_account_id))?.name || ''}` })
+        await createTransaction({ account_id: parseInt(form.to_account_id), type: 'income',  category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer from ${accounts.find(a=>a.id===parseInt(form.account_id))?.name || ''}` })
+      } else {
+        await createTransaction({ account_id: parseInt(form.account_id), type: form.type, category: form.category, amount: parseFloat(form.amount), description: form.description || null })
+      }
       onCreated(); onClose()
     } catch (err) { setError(err.response?.data?.detail || 'Failed to create transaction.') }
     finally { setLoading(false) }
   }
+
+  const typeColors = { expense: '#F04D4D', income: '#4D9FF0', transfer: '#F0A04D' }
+
   return (
     <div style={cs.overlay} onClick={onClose}>
       <div style={cs.modal} onClick={e => e.stopPropagation()}>
         <div style={cs.modalHeader}><h2 style={cs.modalTitle}>New Transaction</h2><button onClick={onClose} style={cs.iconBtn}><IconClose /></button></div>
         <form onSubmit={handleSubmit} style={cs.form}>
-          <div style={cs.field}><label style={cs.label}>Account</label>
+
+          {/* Type selector - pill buttons */}
+          <div style={cs.field}>
+            <label style={cs.label}>Type</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[['expense','Expense'],['income','Income'],['transfer','Transfer']].map(([v,l]) => (
+                <button key={v} type="button" onClick={() => setForm({ ...form, type: v, category: '' })}
+                  style={{ flex: 1, padding: '10px', borderRadius: 8, border: `1.5px solid ${form.type === v ? typeColors[v] : '#2a2a2a'}`,
+                    background: form.type === v ? typeColors[v]+'22' : 'transparent',
+                    color: form.type === v ? typeColors[v] : '#555', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* From account */}
+          <div style={cs.field}>
+            <label style={cs.label}>{form.type === 'transfer' ? 'From Account' : 'Account'}</label>
             <select style={cs.input} value={form.account_id} onChange={e => setForm({ ...form, account_id: e.target.value })}>
               {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name} ({fmtEur(acc.balance)})</option>)}
-            </select></div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <div style={cs.field}><label style={cs.label}>Type</label>
-              <select style={cs.input} value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
-                <option value="expense">Expense</option><option value="income">Income</option>
-              </select></div>
-            <div style={cs.field}><label style={cs.label}>Amount (€)</label><input style={cs.input} type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} required /></div>
+            </select>
           </div>
-          <div style={cs.field}><label style={cs.label}>Category</label><input style={cs.input} placeholder="e.g. Food, Salary..." value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} required /></div>
-          <div style={cs.field}><label style={cs.label}>Description <span style={{ color: '#444', fontSize: 11 }}>(optional)</span></label><input style={cs.input} placeholder="Add a note..." value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
+
+          {/* To account (transfer only) */}
+          {form.type === 'transfer' && (
+            <div style={cs.field}>
+              <label style={cs.label}>To Account</label>
+              <select style={cs.input} value={form.to_account_id} onChange={e => setForm({ ...form, to_account_id: e.target.value })}>
+                {accounts.filter(a => a.id !== parseInt(form.account_id)).map(acc => <option key={acc.id} value={acc.id}>{acc.name} ({fmtEur(acc.balance)})</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Amount */}
+          <div style={cs.field}>
+            <label style={cs.label}>Amount (€)</label>
+            <input style={cs.input} type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} required />
+          </div>
+
+          {/* Category (not for transfer) */}
+          {form.type !== 'transfer' && (
+            <div style={cs.field}>
+              <label style={cs.label}>Category</label>
+              <CategorySelect type={form.type} value={form.category} onChange={v => setForm({ ...form, category: v })} />
+            </div>
+          )}
+
+          {/* Description */}
+          {form.type !== 'transfer' && (
+            <div style={cs.field}>
+              <label style={cs.label}>Description <span style={{ color: '#444', fontSize: 11 }}>(optional)</span></label>
+              <input style={cs.input} placeholder="Add a note..." value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+            </div>
+          )}
+
           {error && <p style={cs.error}>{error}</p>}
-          <button type="submit" disabled={loading} style={{ ...cs.submitBtn, opacity: loading ? 0.7 : 1 }}>{loading ? 'Saving...' : 'Save Transaction'}</button>
+          <button type="submit" disabled={loading} style={{ ...cs.submitBtn, opacity: loading ? 0.7 : 1, background: typeColors[form.type] }}>
+            {loading ? 'Saving...' : form.type === 'transfer' ? 'Transfer' : 'Save Transaction'}
+          </button>
         </form>
       </div>
     </div>
@@ -226,6 +308,79 @@ function CreateCategoryModal({ onClose, onCreated }) {
   )
 }
 
+
+function EditTransactionModal({ tx, accounts, onClose, onSaved }) {
+  const [form, setForm] = useState({ account_id: tx.account_id, type: tx.type, category: tx.category, amount: tx.amount, description: tx.description || '', to_account_id: '' })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const handleSubmit = async (e) => {
+    e.preventDefault(); setLoading(true); setError('')
+    try {
+      await deleteTransaction(tx.id)
+      if (form.type === 'transfer') {
+        if (!form.to_account_id) { setError('Please select a destination account.'); setLoading(false); return }
+        await createTransaction({ account_id: parseInt(form.account_id),   type: 'expense', category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer to ${accounts.find(a=>a.id===parseInt(form.to_account_id))?.name||''}` })
+        await createTransaction({ account_id: parseInt(form.to_account_id), type: 'income', category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer from ${accounts.find(a=>a.id===parseInt(form.account_id))?.name||''}` })
+      } else {
+        await createTransaction({ account_id: parseInt(form.account_id), type: form.type, category: form.category, amount: parseFloat(form.amount), description: form.description || null })
+      }
+      onSaved(); onClose()
+    } catch (err) { setError(err.response?.data?.detail || 'Failed to update.') }
+    finally { setLoading(false) }
+  }
+  const typeColors = { expense: '#F04D4D', income: '#4D9FF0', transfer: '#F0A04D' }
+  return (
+    <div style={cs.overlay} onClick={onClose}>
+      <div style={cs.modal} onClick={e => e.stopPropagation()}>
+        <div style={cs.modalHeader}><h2 style={cs.modalTitle}>Edit Transaction</h2><button onClick={onClose} style={cs.iconBtn}><IconClose /></button></div>
+        <form onSubmit={handleSubmit} style={cs.form}>
+          <div style={cs.field}>
+            <label style={cs.label}>Type</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[['expense','Expense'],['income','Income'],['transfer','Transfer']].map(([v,l]) => (
+                <button key={v} type="button" onClick={() => setForm({ ...form, type: v, category: v === 'transfer' ? 'Transfer' : '' })}
+                  style={{ flex: 1, padding: '10px', borderRadius: 8, border: `1.5px solid ${form.type === v ? typeColors[v] : '#2a2a2a'}`,
+                    background: form.type === v ? typeColors[v]+'22' : 'transparent',
+                    color: form.type === v ? typeColors[v] : '#555', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={cs.field}><label style={cs.label}>{form.type === 'transfer' ? 'From Account' : 'Account'}</label>
+            <select style={cs.input} value={form.account_id} onChange={e => setForm({ ...form, account_id: e.target.value })}>
+              {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+            </select>
+          </div>
+          {form.type === 'transfer' && (
+            <div style={cs.field}><label style={cs.label}>To Account</label>
+              <select style={cs.input} value={form.to_account_id} onChange={e => setForm({ ...form, to_account_id: e.target.value })}>
+                <option value="" disabled>Select destination...</option>
+                {accounts.filter(a => a.id !== parseInt(form.account_id)).map(acc => <option key={acc.id} value={acc.id}>{acc.name} ({fmtEur(acc.balance)})</option>)}
+              </select>
+            </div>
+          )}
+          <div style={cs.field}><label style={cs.label}>Amount (€)</label>
+            <input style={cs.input} type="number" step="0.01" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} required />
+          </div>
+          {form.type !== 'transfer' && (
+            <div style={cs.field}><label style={cs.label}>Category</label>
+              <CategorySelect type={form.type} value={form.category} onChange={v => setForm({ ...form, category: v })} />
+            </div>
+          )}
+          {form.type !== 'transfer' && (
+            <div style={cs.field}><label style={cs.label}>Description <span style={{ color: '#444', fontSize: 11 }}>(optional)</span></label>
+              <input style={cs.input} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+            </div>
+          )}
+          {error && <p style={cs.error}>{error}</p>}
+          <button type="submit" disabled={loading} style={{ ...cs.submitBtn, opacity: loading ? 0.7 : 1, background: typeColors[form.type] }}>{loading ? 'Saving...' : 'Save Changes'}</button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -243,9 +398,11 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [showTxModal, setShowTxModal] = useState(false)
+  const [selectedAccount, setSelectedAccount] = useState(null)
   const [showBudgetModal, setShowBudgetModal] = useState(false)
   const [showGoalModal, setShowGoalModal] = useState(false)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [editTx, setEditTx] = useState(null)
   const [reportPeriod, setReportPeriod] = useState('monthly')
   const [chartType, setChartType] = useState('line')
   const [chartPeriod, setChartPeriod] = useState('6months')
@@ -395,6 +552,8 @@ export default function Dashboard() {
     URL.revokeObjectURL(url)
   }
 
+  const handleTabChange = (tab) => { setActiveTab(tab); setSelectedAccount(null) }
+
   const navItems = [
     { id: 'overview',     label: 'Overview',     icon: <IconHome /> },
     { id: 'accounts',     label: 'Accounts',     icon: <IconWallet /> },
@@ -437,19 +596,19 @@ export default function Dashboard() {
             <nav style={cs.nav}>
               <p style={cs.navGroup}>MAIN</p>
               {navItems.slice(0,4).map(item => (
-                <button key={item.id} onClick={() => setActiveTab(item.id)} style={{ ...cs.navItem, ...(activeTab === item.id ? cs.navItemActive : {}) }}>
+                <button key={item.id} onClick={() => handleTabChange(item.id)} style={{ ...cs.navItem, ...(activeTab === item.id ? cs.navItemActive : {}) }}>
                   <span style={{ color: activeTab === item.id ? '#C9F04D' : '#555' }}>{item.icon}</span>{item.label}
                 </button>
               ))}
               <p style={cs.navGroup}>PLAN</p>
               {navItems.slice(4,6).map(item => (
-                <button key={item.id} onClick={() => setActiveTab(item.id)} style={{ ...cs.navItem, ...(activeTab === item.id ? cs.navItemActive : {}) }}>
+                <button key={item.id} onClick={() => handleTabChange(item.id)} style={{ ...cs.navItem, ...(activeTab === item.id ? cs.navItemActive : {}) }}>
                   <span style={{ color: activeTab === item.id ? '#C9F04D' : '#555' }}>{item.icon}</span>{item.label}
                 </button>
               ))}
               <p style={cs.navGroup}>ANALYSE</p>
               {navItems.slice(6,10).map(item => (
-                <button key={item.id} onClick={() => setActiveTab(item.id)} style={{ ...cs.navItem, ...(activeTab === item.id ? cs.navItemActive : {}) }}>
+                <button key={item.id} onClick={() => handleTabChange(item.id)} style={{ ...cs.navItem, ...(activeTab === item.id ? cs.navItemActive : {}) }}>
                   <span style={{ color: activeTab === item.id ? '#C9F04D' : '#555' }}>{item.icon}</span>{item.label}
                 </button>
               ))}
@@ -466,7 +625,7 @@ export default function Dashboard() {
       )}
 
       {/* Main area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingBottom: isMobile ? 70 : 0 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingBottom: isMobile ? 90 : 0 }}>
 
         {/* Top Bar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '12px 16px' : '16px 40px', borderBottom: '1px solid #1a1a1a', background: '#0d0d0d', position: 'sticky', top: 0, zIndex: 10 }}>
@@ -513,7 +672,7 @@ export default function Dashboard() {
                 <div style={{ ...cs.section, flex: 2 }}>
                   <h2 style={cs.sectionTitle}>Last 7 Days</h2>
                   {last7Days.every(d => d.expenses === 0 && d.income === 0) ? <div style={cs.chartEmpty}>No data yet</div> : (
-                    <ResponsiveContainer width="100%" height={isMobile ? 140 : 175}>
+                    <ResponsiveContainer width="100%" height={isMobile ? 180 : 175}>
                       <LineChart data={last7Days} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                         <XAxis dataKey="label" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
                         <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -532,7 +691,7 @@ export default function Dashboard() {
                   <h2 style={cs.sectionTitle}>By Category</h2>
                   {expensesByCategory.length === 0 ? <div style={cs.chartEmpty}>No expenses</div> : (
                     <>
-                      <ResponsiveContainer width="100%" height={isMobile ? 120 : 150}>
+                      <ResponsiveContainer width="100%" height={isMobile ? 160 : 150}>
                         <PieChart>
                           <Pie data={expensesByCategory} cx="50%" cy="50%" innerRadius={35} outerRadius={60} dataKey="value" paddingAngle={2}>
                             {expensesByCategory.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
@@ -557,7 +716,7 @@ export default function Dashboard() {
 
               <div style={cs.section}>
                 <h2 style={cs.sectionTitle}>Last 6 Months</h2>
-                <ResponsiveContainer width="100%" height={isMobile ? 130 : 160}>
+                <ResponsiveContainer width="100%" height={isMobile ? 180 : 160}>
                   <LineChart data={last6Months} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                     <XAxis dataKey="label" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -593,59 +752,343 @@ export default function Dashboard() {
           {/* ── ACCOUNTS ── */}
           {activeTab === 'accounts' && (
             <div>
-              <div style={cs.pageHeader}>
-                <h1 style={{ ...cs.pageTitle, fontSize: isMobile ? 20 : 24 }}>Accounts</h1>
-                <button onClick={() => setShowModal(true)} style={cs.primaryBtn}><IconPlus /> {isMobile ? 'New' : 'New Account'}</button>
-              </div>
-              {loading ? <p style={cs.muted}>Loading...</p> : accounts.length === 0
-                ? <div style={cs.empty}><p>No accounts yet.</p><button onClick={() => setShowModal(true)} style={cs.primaryBtn}><IconPlus /> Create account</button></div>
-                : <div style={cs.section}>
-                    {accounts.map(acc => (
-                      <div key={acc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid #1a1a1a' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ width: 10, height: 10, borderRadius: '50%', background: accentColor(acc.type), display: 'inline-block' }} />
-                          <div><p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{acc.name}</p><p style={{ margin: 0, fontSize: 11, color: '#555', textTransform: 'capitalize' }}>{acc.type}</p></div>
+              {selectedAccount ? (
+                // ── Account Detail View ──
+                (() => {
+                  const acc = accounts.find(a => a.id === selectedAccount)
+                  if (!acc) return null
+                  const accTxs = transactions.filter(t => t.account_id === acc.id)
+                  const accIncome   = accTxs.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0)
+                  const accExpenses = accTxs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0)
+                  const accColor    = accentColor(acc.type)
+
+                  // Last 30 days chart for this account
+                  const accLast30 = []
+                  for (let i = 29; i >= 0; i--) {
+                    const d = new Date(); d.setDate(d.getDate() - i)
+                    const dayStr = d.toISOString().split('T')[0]
+                    const label  = `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}`
+                    accLast30.push({
+                      label,
+                      income:   accTxs.filter(t=>t.type==='income'  && t.date?.startsWith(dayStr)).reduce((s,t)=>s+Number(t.amount),0),
+                      expenses: accTxs.filter(t=>t.type==='expense' && t.date?.startsWith(dayStr)).reduce((s,t)=>s+Number(t.amount),0),
+                    })
+                  }
+
+                  const accByCategory = (() => {
+                    const map = {}
+                    accTxs.filter(t=>t.type==='expense').forEach(t => { map[t.category]=(map[t.category]||0)+Number(t.amount) })
+                    return Object.entries(map).map(([name,value])=>({name,value:Math.round(value*100)/100})).sort((a,b)=>b.value-a.value)
+                  })()
+
+                  const sortedAccTxs = [...accTxs].sort((a,b)=>new Date(b.date)-new Date(a.date))
+
+                  return (
+                    <div>
+                      {/* Back button + header */}
+                      <div style={cs.pageHeader}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <button onClick={() => setSelectedAccount(null)} style={{ ...cs.monthBtn, padding: '8px 12px' }}>
+                            <IconChevL /> <span style={{ fontSize: 13, marginLeft: 4 }}>Back</span>
+                          </button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: '50%', background: accColor+'22', border: `2px solid ${accColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span style={{ fontSize: 16, fontWeight: 800, color: accColor }}>{acc.name[0].toUpperCase()}</span>
+                            </div>
+                            <div>
+                              <h1 style={{ ...cs.pageTitle, fontSize: isMobile ? 18 : 22, margin: 0 }}>{acc.name}</h1>
+                              <span style={{ fontSize: 11, color: '#555', textTransform: 'capitalize' }}>{acc.type} account</span>
+                            </div>
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                          <span style={{ color: accentColor(acc.type), fontWeight: 700 }}>{fmtEur(acc.balance)}</span>
-                          <button onClick={() => handleDelete(acc.id)} style={cs.deleteBtn}><IconTrash /></button>
+                        <button onClick={() => handleDelete(acc.id)} style={{ background: 'transparent', border: '1px solid #F04D4D44', color: '#F04D4D', borderRadius: 8, padding: '8px 14px', fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                          Delete Account
+                        </button>
+                      </div>
+
+                      {/* Stats row */}
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
+                        {[
+                          { label: 'Current Balance', value: fmtEur(acc.balance),         color: accColor },
+                          { label: 'Total Income',    value: fmtEur(accIncome),            color: '#4D9FF0' },
+                          { label: 'Total Expenses',  value: fmtEur(accExpenses),          color: '#F04D4D' },
+                          { label: 'Transactions',    value: accTxs.length,                color: '#F0A04D' },
+                        ].map(c => (
+                          <div key={c.label} style={{ ...cs.statCard, borderTop: `3px solid ${c.color}` }}>
+                            <p style={cs.statLabel}>{c.label}</p>
+                            <p style={{ ...cs.statValue, color: c.color, fontSize: isMobile ? 16 : 20 }}>{c.value}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Charts row */}
+                      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 14, marginBottom: 14 }}>
+                        <div style={{ ...cs.section, flex: 2 }}>
+                          <h2 style={cs.sectionTitle}>Income vs Expenses (Last 30 days)</h2>
+                          <ResponsiveContainer width="100%" height={160}>
+                            <AreaChart data={accLast30} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="accIncG" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4D9FF0" stopOpacity={0.3}/><stop offset="95%" stopColor="#4D9FF0" stopOpacity={0}/></linearGradient>
+                                <linearGradient id="accExpG" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#F04D4D" stopOpacity={0.3}/><stop offset="95%" stopColor="#F04D4D" stopOpacity={0}/></linearGradient>
+                              </defs>
+                              <XAxis dataKey="label" tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} interval={4} />
+                              <YAxis tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} />
+                              <Tooltip content={<CustomTooltip />} />
+                              <Area type="monotone" dataKey="income"   stroke="#4D9FF0" fill="url(#accIncG)" strokeWidth={2} dot={false} />
+                              <Area type="monotone" dataKey="expenses" stroke="#F04D4D" fill="url(#accExpG)" strokeWidth={2} dot={false} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div style={{ ...cs.section, flex: 1 }}>
+                          <h2 style={cs.sectionTitle}>Expenses by Category</h2>
+                          {accByCategory.length === 0 ? <div style={cs.chartEmpty}>No expenses</div> : (
+                            <>
+                              <ResponsiveContainer width="100%" height={120}>
+                                <PieChart>
+                                  <Pie data={accByCategory} cx="50%" cy="50%" innerRadius={28} outerRadius={52} dataKey="value" paddingAngle={2}>
+                                    {accByCategory.map((_,i) => <Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]} />)}
+                                  </Pie>
+                                  <Tooltip formatter={v=>fmtEur(v)} contentStyle={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8, fontSize: 11 }} />
+                                </PieChart>
+                              </ResponsiveContainer>
+                              {accByCategory.slice(0,4).map((c,i) => (
+                                <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#aaa' }}>
+                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: PIE_COLORS[i%PIE_COLORS.length], display: 'inline-block' }} />{c.name}
+                                  </span>
+                                  <span style={{ fontSize: 11, fontWeight: 600 }}>{fmtEur(c.value)}</span>
+                                </div>
+                              ))}
+                            </>
+                          )}
                         </div>
                       </div>
-                    ))}
+
+                      {/* Transactions list */}
+                      <div style={cs.section}>
+                        <h2 style={cs.sectionTitle}>All Transactions ({sortedAccTxs.length})</h2>
+                        {sortedAccTxs.length === 0 ? <p style={cs.muted}>No transactions for this account.</p> : sortedAccTxs.map((tx, i) => {
+                          const color = tx.type === 'income' ? '#4D9FF0' : '#F04D4D'
+                          return (
+                            <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 0', borderBottom: i < sortedAccTxs.length-1 ? '1px solid #181818' : 'none' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{ width: 34, height: 34, borderRadius: '50%', background: color+'22', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 800, color }}>{(tx.category||'?')[0].toUpperCase()}</span>
+                                </div>
+                                <div>
+                                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>{tx.category}</p>
+                                  <p style={{ margin: 0, fontSize: 11, color: '#555' }}>{tx.date ? new Date(tx.date).toLocaleDateString('pt-PT') : '—'}{tx.description ? ` · ${tx.description}` : ''}</p>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{ color, fontWeight: 700, fontSize: 14 }}>{tx.type==='income'?'+':'-'}{fmtEur(tx.amount)}</span>
+                                <button onClick={() => handleDeleteTx(tx.id)} style={cs.deleteBtn}><IconTrash /></button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()
+              ) : (
+                // ── Accounts List ──
+                <div>
+                  <div style={cs.pageHeader}>
+                    <h1 style={{ ...cs.pageTitle, fontSize: isMobile ? 20 : 24 }}>Accounts</h1>
+                    <button onClick={() => setShowModal(true)} style={cs.primaryBtn}><IconPlus /> {isMobile ? 'New' : 'New Account'}</button>
                   </div>
-              }
+                  {loading ? <p style={cs.muted}>Loading...</p> : accounts.length === 0
+                    ? <div style={cs.empty}><p>No accounts yet.</p><button onClick={() => setShowModal(true)} style={cs.primaryBtn}><IconPlus /> Create account</button></div>
+                    : <div style={cs.section}>
+                        {accounts.map(acc => (
+                          <div key={acc.id} onClick={() => setSelectedAccount(acc.id)}
+                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid #1a1a1a', cursor: 'pointer' }}
+                            onMouseEnter={e => e.currentTarget.style.background='#141414'}
+                            onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <div style={{ width: 38, height: 38, borderRadius: '50%', background: accentColor(acc.type)+'22', border: `1.5px solid ${accentColor(acc.type)}55`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span style={{ fontSize: 15, fontWeight: 800, color: accentColor(acc.type) }}>{acc.name[0].toUpperCase()}</span>
+                              </div>
+                              <div>
+                                <p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{acc.name}</p>
+                                <p style={{ margin: 0, fontSize: 11, color: '#555', textTransform: 'capitalize' }}>{acc.type} · {transactions.filter(t=>t.account_id===acc.id).length} transactions</p>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                              <span style={{ color: accentColor(acc.type), fontWeight: 700, fontSize: 15 }}>{fmtEur(acc.balance)}</span>
+                              <IconChevR />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                  }
+                </div>
+              )}
             </div>
           )}
 
           {/* ── TRANSACTIONS ── */}
           {activeTab === 'transactions' && (
             <div>
-              <div style={cs.pageHeader}>
+              <div style={{ marginBottom: 16 }}>
                 <h1 style={{ ...cs.pageTitle, fontSize: isMobile ? 20 : 24 }}>Transactions</h1>
-                <button onClick={() => setShowTxModal(true)} style={cs.primaryBtn}><IconPlus /> {isMobile ? 'New' : 'New Transaction'}</button>
               </div>
-              {transactions.length === 0 ? <div style={cs.empty}><p style={cs.muted}>No transactions yet.</p></div> : (
-                <div style={cs.section}>
-                  {transactions.map(tx => {
-                    const acc = accounts.find(a => a.id === tx.account_id)
-                    const color = tx.type === 'income' ? '#4D9FF0' : '#F04D4D'
-                    return (
-                      <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #1a1a1a' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0, display: 'inline-block' }} />
-                          <div style={{ minWidth: 0 }}>
-                            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.category}</p>
-                            <p style={{ margin: 0, fontSize: 11, color: '#555' }}>{acc?.name || '—'}{!isMobile && tx.description ? ` · ${tx.description}` : ''}</p>
+
+              {transactions.length === 0 ? (
+                <div style={cs.empty}><p style={cs.muted}>No transactions yet.</p></div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 14, alignItems: 'flex-start', minHeight: '100%' }}>
+
+                  {/* Left: grouped list */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {(() => {
+                      // group by date
+                      const grouped = {}
+                      const sorted = [...monthTxs].sort((a,b) => new Date(b.date) - new Date(a.date))
+                      sorted.forEach(tx => {
+                        const d = tx.date ? tx.date.split('T')[0] : 'Unknown'
+                        if (!grouped[d]) grouped[d] = []
+                        grouped[d].push(tx)
+                      })
+                      if (Object.keys(grouped).length === 0) return (
+                        <div style={cs.section}><p style={cs.muted}>No transactions for {MONTHS[currentMonth]}.</p></div>
+                      )
+                      const CATEGORY_COLORS = {
+                        'Food': '#F0A04D', 'Salary': '#C9F04D', 'Transport': '#4D9FF0',
+                        'Health': '#F04D4D', 'Entertainment': '#A04DF0', 'Shopping': '#F04DA0',
+                        'Housing': '#4DF0C9', 'Education': '#4D9FF0', 'Utilities': '#F0A04D',
+                      }
+                      const getCatColor = (cat, type) => {
+                        const key = Object.keys(CATEGORY_COLORS).find(k => cat?.toLowerCase().includes(k.toLowerCase()))
+                        return key ? CATEGORY_COLORS[key] : (type === 'income' ? '#4D9FF0' : '#F04D4D')
+                      }
+                      const getCatInitial = (cat) => (cat || '?')[0].toUpperCase()
+                      const getDayLabel = (dateStr) => {
+                        if (!dateStr || dateStr === 'Unknown') return 'Unknown'
+                        const d = new Date(dateStr)
+                        const day = d.getDate()
+                        const weekday = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()]
+                        return `${day} · ${weekday}`
+                      }
+                      return Object.entries(grouped).map(([date, txs]) => {
+                        const dayIncome   = txs.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0)
+                        const dayExpenses = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0)
+                        return (
+                          <div key={date} style={{ marginBottom: 6 }}>
+                            {/* Day header */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', marginBottom: 2 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#666', letterSpacing: 0.3 }}>{getDayLabel(date)}</span>
+                              <div style={{ display: 'flex', gap: 12 }}>
+                                {dayIncome   > 0 && <span style={{ fontSize: 11, color: '#4D9FF0', fontWeight: 600 }}>+{fmtEur(dayIncome)}</span>}
+                                {dayExpenses > 0 && <span style={{ fontSize: 11, color: '#F04D4D', fontWeight: 600 }}>-{fmtEur(dayExpenses)}</span>}
+                              </div>
+                            </div>
+                            <div style={{ ...cs.section, padding: '0px 12px', marginBottom: 0 }}>
+                              {txs.map((tx, i) => {
+                                const acc      = accounts.find(a => a.id === tx.account_id)
+                                const catColor = getCatColor(tx.category, tx.type)
+                                const color    = tx.type === 'income' ? '#4D9FF0' : '#F04D4D'
+                                return (
+                                  <div key={tx.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < txs.length-1 ? '1px solid #161616' : 'none', width: '100%' }}>
+                                    {/* Left: icon + text */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: catColor + '22', border: `1.5px solid ${catColor}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        <span style={{ fontSize: 13, fontWeight: 800, color: catColor }}>{getCatInitial(tx.category)}</span>
+                                      </div>
+                                      <div style={{ minWidth: 0 }}>
+                                        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>{tx.category}</p>
+                                        <p style={{ margin: 0, fontSize: 10, color: '#555', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+                                          {acc?.name || '—'}{tx.description ? ` · ${tx.description}` : ''}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    {/* Right: value + edit + trash */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 12 }}>
+                                      <span style={{ color, fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap' }}>{tx.type === 'income' ? '+' : '-'}{fmtEur(tx.amount)}</span>
+                                      <button onClick={() => setEditTx(tx)} style={{ ...cs.deleteBtn, opacity: 0.45, padding: '2px 4px' }}><IconEdit /></button>
+                                      <button onClick={() => handleDeleteTx(tx.id)} style={{ ...cs.deleteBtn, opacity: 0.45, padding: '2px 4px' }}><IconTrash /></button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
                           </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                          {!isMobile && <span style={{ fontSize: 12, color: '#555' }}>{tx.date ? new Date(tx.date).toLocaleDateString('pt-PT') : '—'}</span>}
-                          <span style={{ color, fontWeight: 700, fontSize: 14 }}>{tx.type === 'income' ? '+' : '-'}{fmtEur(tx.amount)}</span>
-                          <button onClick={() => handleDeleteTx(tx.id)} style={cs.deleteBtn}><IconTrash /></button>
-                        </div>
+                        )
+                      })
+                    })()}
+                  </div>
+
+                  {/* Right: charts panel */}
+                  <div style={{ width: isMobile ? '100%' : '38%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10, position: 'sticky', top: 16 }}>
+
+                    {/* Summary card - compact horizontal */}
+                    <div style={{ ...cs.section, padding: '12px 16px' }}>
+                      <h2 style={{ ...cs.sectionTitle, marginBottom: 8 }}>{MONTHS[currentMonth]} Summary</h2>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        {[
+                          { label: 'Income',   value: fmtEur(totalIncome),              color: '#4D9FF0' },
+                          { label: 'Expenses', value: fmtEur(totalExpenses),             color: '#F04D4D' },
+                          { label: 'Net',      value: fmtEur(totalIncome-totalExpenses), color: totalIncome-totalExpenses >= 0 ? '#C9F04D' : '#F04D4D' },
+                          { label: 'Txns',     value: monthTxs.length,                  color: '#aaa' },
+                        ].map(s => (
+                          <div key={s.label} style={{ background: '#161616', borderRadius: 8, padding: '8px 10px' }}>
+                            <p style={{ margin: '0 0 2px', fontSize: 10, color: '#555', textTransform: 'uppercase' }}>{s.label}</p>
+                            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: s.color }}>{s.value}</p>
+                          </div>
+                        ))}
                       </div>
-                    )
-                  })}
+                    </div>
+
+                    {/* Combined Income + Expenses chart */}
+                    <div style={{ ...cs.section, padding: '12px 16px' }}>
+                      <h2 style={{ ...cs.sectionTitle, marginBottom: 6 }}>Last 7 Days</h2>
+                      <ResponsiveContainer width="100%" height={160}>
+                        <AreaChart data={last7Days} margin={{ top: 5, right: 5, left: -30, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="txIncGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4D9FF0" stopOpacity={0.35}/><stop offset="95%" stopColor="#4D9FF0" stopOpacity={0}/></linearGradient>
+                            <linearGradient id="txExpGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#F04D4D" stopOpacity={0.35}/><stop offset="95%" stopColor="#F04D4D" stopOpacity={0}/></linearGradient>
+                          </defs>
+                          <XAxis dataKey="label" tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Area type="monotone" dataKey="income"   stroke="#4D9FF0" fill="url(#txIncGrad)" strokeWidth={2} dot={false} />
+                          <Area type="monotone" dataKey="expenses" stroke="#F04D4D" fill="url(#txExpGrad)" strokeWidth={2} dot={false} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                      <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
+                        <span style={{ fontSize: 10, color: '#4D9FF0', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 2, background: '#4D9FF0', display: 'inline-block', borderRadius: 1 }}/>Income</span>
+                        <span style={{ fontSize: 10, color: '#F04D4D', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 2, background: '#F04D4D', display: 'inline-block', borderRadius: 1 }}/>Expenses</span>
+                      </div>
+                    </div>
+
+                    {/* Category pie */}
+                    <div style={{ ...cs.section, padding: '12px 16px' }}>
+                      <h2 style={{ ...cs.sectionTitle, marginBottom: 6 }}>By Category</h2>
+                      {expensesByCategory.length === 0 ? <div style={cs.chartEmpty}>No expenses</div> : (
+                        <>
+                          <ResponsiveContainer width="100%" height={190}>
+                            <PieChart>
+                              <Pie data={expensesByCategory} cx="50%" cy="50%" innerRadius={45} outerRadius={80} dataKey="value" paddingAngle={2}>
+                                {expensesByCategory.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                              </Pie>
+                              <Tooltip formatter={v => fmtEur(v)} contentStyle={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8, fontSize: 11 }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 4 }}>
+                            {expensesByCategory.slice(0,5).map((c,i) => (
+                              <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#aaa' }}>
+                                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: PIE_COLORS[i%PIE_COLORS.length], display: 'inline-block', flexShrink: 0 }} />{c.name}
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: '#ddd' }}>{fmtEur(c.value)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -790,7 +1233,7 @@ export default function Dashboard() {
               {/* Chart */}
               <div style={{ ...cs.section, marginBottom: 14 }}>
                 <h2 style={cs.sectionTitle}>{reportPeriod === 'weekly' ? 'Weekly' : reportPeriod === 'monthly' ? 'Monthly' : 'Annual'} Overview</h2>
-                <ResponsiveContainer width="100%" height={isMobile ? 140 : 200}>
+                <ResponsiveContainer width="100%" height={isMobile ? 180 : 200}>
                   <BarChart data={reportRows} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                     <XAxis dataKey="label" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -861,7 +1304,7 @@ export default function Dashboard() {
               {/* Main chart */}
               <div style={{ ...cs.section, marginBottom: 14 }}>
                 <h2 style={cs.sectionTitle}>Income vs Expenses</h2>
-                <ResponsiveContainer width="100%" height={isMobile ? 180 : 280}>
+                <ResponsiveContainer width="100%" height={isMobile ? 200 : 280}>
                   {chartType === 'bar' ? (
                     <BarChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                       <XAxis dataKey="label" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -1089,19 +1532,20 @@ export default function Dashboard() {
         </main>
       </div>
 
-      {/* Mobile Bottom Nav */}
+      {/* Mobile Bottom Nav - scrollable with all tabs */}
       {isMobile && (
-        <nav style={cs.bottomNav}>
-          {mobileNavItems.map(item => (
-            <button key={item.id} onClick={() => setActiveTab(item.id)} style={{ ...cs.bottomNavItem, color: activeTab === item.id ? '#C9F04D' : '#444' }}>
-              {item.icon}
-              <span style={{ fontSize: 9, marginTop: 3 }}>{item.label}</span>
-            </button>
-          ))}
-          <button onClick={() => setActiveTab('settings')} style={{ ...cs.bottomNavItem, color: activeTab === 'settings' ? '#C9F04D' : '#444' }}>
-            <IconSettings />
-            <span style={{ fontSize: 9, marginTop: 3 }}>More</span>
-          </button>
+        <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#111', borderTop: '1px solid #1e1e1e', zIndex: 20 }}>
+          <div style={{ display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', padding: '6px 0 8px' }}>
+            {navItems.map(item => (
+              <button key={item.id} onClick={() => handleTabChange(item.id)}
+                style={{ ...cs.bottomNavItem, color: activeTab === item.id ? '#C9F04D' : '#555', flexShrink: 0,
+                  borderBottom: activeTab === item.id ? '2px solid #C9F04D' : '2px solid transparent',
+                  paddingBottom: 4, minWidth: 64 }}>
+                {item.icon}
+                <span style={{ fontSize: 9, marginTop: 3, whiteSpace: 'nowrap' }}>{item.label}</span>
+              </button>
+            ))}
+          </div>
         </nav>
       )}
 
@@ -1110,6 +1554,7 @@ export default function Dashboard() {
       {showBudgetModal  && <CreateBudgetModal       onClose={() => setShowBudgetModal(false)}  onCreated={fetchBudgets} />}
       {showGoalModal    && <CreateGoalModal         onClose={() => setShowGoalModal(false)}    onCreated={fetchGoals} />}
       {showCategoryModal && <CreateCategoryModal    onClose={() => setShowCategoryModal(false)} onCreated={fetchCategories} />}
+      {editTx && <EditTransactionModal tx={editTx} accounts={accounts} onClose={() => setEditTx(null)} onSaved={() => { fetchTransactions(); fetchAccounts(); fetchBudgets() }} />}
     </div>
   )
 }
