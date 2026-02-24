@@ -1,7 +1,7 @@
 import api from './client'
 
 export const listBudgets = async () => {
-  const response = await api.get('/budgets/')
+  const response = await api.get('/budgets/with-spent')
   return response.data
 }
 

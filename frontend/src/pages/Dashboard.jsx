@@ -138,7 +138,7 @@ function CreateBudgetModal({ onClose, onCreated }) {
     setError('')
     try {
       await createBudget(form.category, parseFloat(form.limit_amount))
-      onCreated()
+      await onCreated()
       onClose()
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to create budget.')
@@ -147,9 +147,6 @@ function CreateBudgetModal({ onClose, onCreated }) {
     }
   }
 
-  const handleBudgetCreated = async () => {
-  await fetchBudgets()
-  }
 
   return (
     <div style={cs.overlay} onClick={onClose}>
