@@ -2,6 +2,7 @@
   "name": "finance-control-frontend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "node node_modules/vite/bin/vite.js build"
   },
