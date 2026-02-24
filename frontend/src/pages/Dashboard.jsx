@@ -547,7 +547,7 @@ export default function Dashboard() {
       </main>
 
       {showModal && <CreateAccountModal onClose={() => setShowModal(false)} onCreated={fetchAccounts} />}
-      {showTxModal && <CreateTransactionModal accounts={accounts} onClose={() => setShowTxModal(false)} onCreated={() => { fetchTransactions(); fetchAccounts() }} />}
+      {showTxModal && <CreateTransactionModal accounts={accounts} onClose={() => setShowTxModal(false)} onCreated={() => { fetchTransactions(); fetchAccounts(); fetchBudgets() }} />}
       {showBudgetModal && <CreateBudgetModal onClose={() => setShowBudgetModal(false)} onCreated={fetchBudgets} />}
     </div>
   )
