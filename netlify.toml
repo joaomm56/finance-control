@@ -1,6 +1,6 @@
 [build]
   base = "frontend"
-  command = "rm -rf node_modules && npm install && node node_modules/vite/bin/vite.js build"
+  command = "npm install && npm run build"
   publish = "dist"
 
 [[redirects]]
