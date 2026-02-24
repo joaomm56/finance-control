@@ -41,6 +41,7 @@ const IconReport   = () => <Icon d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0
 const IconChart    = () => <Icon d="M18 20V10M12 20V4M6 20v-6" />
 const IconTag      = () => <Icon d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82zM7 7h.01" />
 const IconTool     = () => <Icon d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
+const IconPredict  = () => <Icon d="M2 2l20 20M2 12C2 6.477 6.477 2 12 2M22 12c0 5.523-4.477 10-10 10M8 12a4 4 0 014-4M12 16a4 4 0 004-4" />
 const IconSettings = () => <Icon d="M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
 const IconDownload = () => <Icon d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
 const IconEdit     = () => <Icon d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" size={16} />
@@ -403,6 +404,29 @@ export default function Dashboard() {
   const [showGoalModal, setShowGoalModal] = useState(false)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [editTx, setEditTx] = useState(null)
+  // ── Predict state ──
+  const [predictSearch, setPredictSearch] = useState('')
+  const [predictTicker, setPredictTicker] = useState('')
+  const [predictLoading, setpredictLoading] = useState(false)
+  const [predictError, setPredictError]   = useState('')
+  const [predictData, setPredictData]     = useState(null)
+  const [predictPeriod, setPredictPeriod] = useState('2022-01-01')
+  const [predictHorizon, setPredictHorizon] = useState(180)
+  const [predictView, setPredictView]     = useState('both') // 'historic' | 'forecast' | 'both'
+
+  const runPredict = async (ticker) => {
+    if (!ticker) return
+    setpredictLoading(true); setPredictError(''); setPredictData(null)
+    try {
+      const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${API}/predict/forecast?ticker=${ticker}&start=${predictPeriod}&periods=${predictHorizon}`)
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Error') }
+      const data = await res.json()
+      setPredictData(data)
+      setPredictTicker(ticker)
+    } catch(e) { setPredictError(e.message) }
+    finally { setpredictLoading(false) }
+  }
   const [reportPeriod, setReportPeriod] = useState('monthly')
   const [chartType, setChartType] = useState('line')
   const [chartPeriod, setChartPeriod] = useState('6months')
@@ -565,6 +589,7 @@ export default function Dashboard() {
     { id: 'categories',   label: 'Categories',   icon: <IconTag /> },
     { id: 'tools',        label: 'Tools',        icon: <IconTool /> },
     { id: 'settings',     label: 'Settings',     icon: <IconSettings /> },
+    { id: 'predict',      label: 'Predictions',  icon: <IconPredict /> },
   ]
 
   const mobileNavItems = [
@@ -608,6 +633,12 @@ export default function Dashboard() {
               ))}
               <p style={cs.navGroup}>ANALYSE</p>
               {navItems.slice(6,10).map(item => (
+                <button key={item.id} onClick={() => handleTabChange(item.id)} style={{ ...cs.navItem, ...(activeTab === item.id ? cs.navItemActive : {}) }}>
+                  <span style={{ color: activeTab === item.id ? '#C9F04D' : '#555' }}>{item.icon}</span>{item.label}
+                </button>
+              ))}
+              <p style={cs.navGroup}>INVEST</p>
+              {navItems.slice(10,11).map(item => (
                 <button key={item.id} onClick={() => handleTabChange(item.id)} style={{ ...cs.navItem, ...(activeTab === item.id ? cs.navItemActive : {}) }}>
                   <span style={{ color: activeTab === item.id ? '#C9F04D' : '#555' }}>{item.icon}</span>{item.label}
                 </button>
@@ -1485,6 +1516,191 @@ export default function Dashboard() {
                   Clear Local Data (Goals & Categories)
                 </button>
               </div>
+            </div>
+          )}
+
+
+          {/* ── PREDICT INVESTMENTS ── */}
+          {activeTab === 'predict' && (
+            <div>
+              <h1 style={{ ...cs.pageTitle, fontSize: isMobile ? 20 : 24, marginBottom: 4 }}>Predict Investments</h1>
+              <p style={{ color: '#555', fontSize: 12, marginBottom: 20 }}>AI-powered stock forecasting using NeuralProphet. Enter any ticker symbol (e.g. AAPL, NVDA, BTC-USD)</p>
+
+              {/* Search + config bar */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20, alignItems: 'flex-end' }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <label style={cs.label}>Ticker Symbol</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input style={{ ...cs.input, textTransform: 'uppercase' }}
+                      placeholder="e.g. AAPL, NVDA, BTC-USD..."
+                      value={predictSearch}
+                      onChange={e => setPredictSearch(e.target.value.toUpperCase())}
+                      onKeyDown={e => e.key === 'Enter' && runPredict(predictSearch)} />
+                    <button onClick={() => runPredict(predictSearch)} disabled={predictLoading || !predictSearch}
+                      style={{ ...cs.primaryBtn, opacity: (!predictSearch || predictLoading) ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                      {predictLoading ? '⏳ Training...' : '🔮 Predict'}
+                    </button>
+                  </div>
+                </div>
+                <div style={{ minWidth: 140 }}>
+                  <label style={cs.label}>Historical Start</label>
+                  <select style={cs.input} value={predictPeriod} onChange={e => setPredictPeriod(e.target.value)}>
+                    <option value="2020-01-01">From 2020</option>
+                    <option value="2021-01-01">From 2021</option>
+                    <option value="2022-01-01">From 2022</option>
+                    <option value="2023-01-01">From 2023</option>
+                    <option value="2024-01-01">From 2024</option>
+                  </select>
+                </div>
+                <div style={{ minWidth: 140 }}>
+                  <label style={cs.label}>Forecast Horizon</label>
+                  <select style={cs.input} value={predictHorizon} onChange={e => setPredictHorizon(Number(e.target.value))}>
+                    <option value={30}>30 days</option>
+                    <option value={90}>90 days</option>
+                    <option value={180}>180 days</option>
+                    <option value={365}>1 year</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Popular tickers quick-pick */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+                {['AAPL','NVDA','MSFT','GOOGL','TSLA','BTC-USD','ETH-USD','SPY','AMZN','META'].map(t => (
+                  <button key={t} onClick={() => { setPredictSearch(t); runPredict(t) }}
+                    style={{ padding: '5px 12px', borderRadius: 20, border: `1px solid ${predictTicker === t ? '#C9F04D' : '#2a2a2a'}`,
+                      background: predictTicker === t ? '#C9F04D22' : '#161616',
+                      color: predictTicker === t ? '#C9F04D' : '#666', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+
+              {/* Loading state */}
+              {predictLoading && (
+                <div style={{ ...cs.section, padding: 40, textAlign: 'center' }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>🧠</div>
+                  <p style={{ color: '#C9F04D', fontWeight: 700, marginBottom: 4 }}>Training NeuralProphet model...</p>
+                  <p style={{ color: '#555', fontSize: 12 }}>Downloading data, fitting model and generating forecast. This may take 20–60 seconds.</p>
+                </div>
+              )}
+
+              {/* Error */}
+              {predictError && !predictLoading && (
+                <div style={{ ...cs.error, marginBottom: 16 }}>⚠️ {predictError}</div>
+              )}
+
+              {/* Results */}
+              {predictData && !predictLoading && (() => {
+                const { ticker, company_name, currency, historic, forecast, metrics, current_price, price_change_pct } = predictData
+                const sym = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency + ' '
+
+                // Build chart data: merge historic actual + predicted + future forecast
+                const chartData = [
+                  ...historic.slice(-180).map(d => ({ date: d.date, actual: d.actual, fitted: d.predicted })),
+                  ...forecast.map(d => ({ date: d.date, forecast: d.predicted }))
+                ]
+
+                const lastActual   = historic[historic.length - 1]?.actual || 0
+                const lastForecast = forecast[forecast.length - 1]?.predicted || 0
+                const upward       = price_change_pct >= 0
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+                    {/* Header info cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 10 }}>
+                      {[
+                        { label: 'Ticker',         value: ticker,                    color: '#C9F04D' },
+                        { label: 'Current Price',  value: `${sym}${lastActual.toFixed(2)}`, color: '#f0f0f0' },
+                        { label: `${predictHorizon}d Forecast`, value: `${sym}${lastForecast.toFixed(2)}`, color: upward ? '#4DCB71' : '#F04D4D' },
+                        { label: 'Expected Change',value: `${upward ? '+' : ''}${price_change_pct}%`, color: upward ? '#4DCB71' : '#F04D4D' },
+                      ].map(c => (
+                        <div key={c.label} style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 10, padding: '12px 16px' }}>
+                          <p style={{ margin: '0 0 4px', fontSize: 10, color: '#555', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{c.label}</p>
+                          <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: c.color }}>{c.value}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Company + metrics row */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <p style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{company_name}</p>
+                        <p style={{ margin: 0, fontSize: 11, color: '#555' }}>Trained on {historic.length} trading days · {forecast.length} day forecast</p>
+                      </div>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        {[
+                          { label: 'R² Score', value: metrics.r2, good: metrics.r2 > 0.85, fmt: v => v.toFixed(3) },
+                          { label: 'MAE', value: metrics.mae, good: true, fmt: v => `${sym}${v.toFixed(2)}` },
+                          { label: 'MAPE', value: metrics.mape, good: metrics.mape < 10, fmt: v => `${v.toFixed(1)}%` },
+                        ].map(m => (
+                          <div key={m.label} style={{ background: '#111', border: `1px solid ${m.good ? '#C9F04D33' : '#F04D4D33'}`, borderRadius: 8, padding: '6px 12px', textAlign: 'center' }}>
+                            <p style={{ margin: '0 0 2px', fontSize: 9, color: '#555', textTransform: 'uppercase' }}>{m.label}</p>
+                            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: m.good ? '#C9F04D' : '#F04D4D' }}>{m.fmt(m.value)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* View toggle */}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {[['both','Historic + Forecast'],['historic','Historic Only'],['forecast','Forecast Only']].map(([v,l]) => (
+                        <button key={v} onClick={() => setPredictView(v)}
+                          style={{ padding: '6px 14px', borderRadius: 8, border: `1px solid ${predictView===v ? '#C9F04D' : '#2a2a2a'}`,
+                            background: predictView===v ? '#C9F04D22' : 'transparent',
+                            color: predictView===v ? '#C9F04D' : '#555', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Main chart */}
+                    <div style={{ ...cs.section, padding: 20 }}>
+                      <div style={{ display: 'flex', gap: 16, marginBottom: 10, flexWrap: 'wrap' }}>
+                        {predictView !== 'forecast' && <span style={{ fontSize: 11, color: '#4DCB71', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 16, height: 2, background: '#4DCB71', display: 'inline-block', borderRadius: 1 }}/>Actual Price</span>}
+                        {predictView !== 'forecast' && <span style={{ fontSize: 11, color: '#C9F04D', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 16, height: 2, background: '#C9F04D', borderStyle: 'dashed', display: 'inline-block', borderRadius: 1 }}/>Model Fit</span>}
+                        {predictView !== 'historic' && <span style={{ fontSize: 11, color: '#4D9FF0', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 16, height: 2, background: '#4D9FF0', display: 'inline-block', borderRadius: 1 }}/>Forecast</span>}
+                      </div>
+                      <ResponsiveContainer width="100%" height={isMobile ? 240 : 380}>
+                        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="gradActual" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#4DCB71" stopOpacity={0.2}/><stop offset="95%" stopColor="#4DCB71" stopOpacity={0}/>
+                            </linearGradient>
+                            <linearGradient id="gradForecast" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#4D9FF0" stopOpacity={0.25}/><stop offset="95%" stopColor="#4D9FF0" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="date" tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false}
+                            tickFormatter={v => v ? v.slice(5) : ''} interval="preserveStartEnd" />
+                          <YAxis tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false}
+                            tickFormatter={v => `${sym}${v >= 1000 ? (v/1000).toFixed(1)+'k' : v.toFixed(0)}`} width={60} />
+                          <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8, fontSize: 11 }}
+                            formatter={(v, n) => [`${sym}${Number(v).toFixed(2)}`, n === 'actual' ? 'Actual' : n === 'fitted' ? 'Model Fit' : 'Forecast']}
+                            labelFormatter={l => `Date: ${l}`} />
+                          {predictView !== 'forecast' && <Area type="monotone" dataKey="actual"   stroke="#4DCB71" fill="url(#gradActual)"   strokeWidth={1.5} dot={false} connectNulls />}
+                          {predictView !== 'forecast' && <Area type="monotone" dataKey="fitted"   stroke="#C9F04D" fill="none"               strokeWidth={1} strokeDasharray="4 2" dot={false} connectNulls />}
+                          {predictView !== 'historic' && <Area type="monotone" dataKey="forecast" stroke="#4D9FF0" fill="url(#gradForecast)" strokeWidth={2} dot={false} connectNulls />}
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Disclaimer */}
+                    <p style={{ color: '#333', fontSize: 10, textAlign: 'center', margin: 0 }}>
+                      ⚠️ This is a ML-based prediction for educational purposes only. Not financial advice. Past performance does not guarantee future results.
+                    </p>
+                  </div>
+                )
+              })()}
+
+              {/* Empty state */}
+              {!predictData && !predictLoading && !predictError && (
+                <div style={{ ...cs.section, padding: '48px 24px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>📈</div>
+                  <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Enter a ticker to get started</p>
+                  <p style={{ color: '#555', fontSize: 12 }}>Search for any stock (AAPL, NVDA...) or crypto (BTC-USD, ETH-USD) and click Predict</p>
+                </div>
+              )}
             </div>
           )}
 
