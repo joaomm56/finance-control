@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: 'https://finance-control-axh4.onrender.com',
+  baseURL: 'https://finance-control-production.up.railway.app',
   headers: { 'Content-Type': 'application/json' }
 })
 
