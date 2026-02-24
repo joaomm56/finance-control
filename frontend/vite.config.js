@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     commonjsOptions: {
-      include: [/node_modules/, 'clsx']
+      include: [/recharts/, /node_modules/]
     }
   }
 })
