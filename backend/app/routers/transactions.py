@@ -19,7 +19,7 @@ class CreateTransactionRequest(BaseModel):
     type: str
     category: str
     description: Optional[str] = None
-
+    date: Optional[str] = None
 # endregion
 
 

@@ -13,3 +13,8 @@ export const createBudget = async (category, limit_amount) => {
 export const deleteBudget = async (id) => {
   await api.delete(`/budgets/${id}`)
 }
+
+export const updateBudget = async (id, limit_amount) => {
+  const response = await api.patch(`/budgets/${id}`, { limit_amount })
+  return response.data
+}

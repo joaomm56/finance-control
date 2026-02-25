@@ -26,7 +26,7 @@ class TransactionService:
     # ==========================================================
 
     def create_transaction(self, user_id: str, account_id: int, amount: float,
-                           tx_type: str, category: str, description: str = None):
+                           tx_type: str, category: str, description: str = None, date: str = None):
 
         if not self.is_valid_type(tx_type):
             raise ValueError(f"Invalid type. Must be: {self.TRANSACTION_TYPES}")
@@ -53,7 +53,7 @@ class TransactionService:
             "type": tx_type.lower(),
             "category": category,
             "description": description,
-            "date": datetime.utcnow().isoformat()
+            "date": date if date else datetime.utcnow().isoformat()
         }
 
         try:

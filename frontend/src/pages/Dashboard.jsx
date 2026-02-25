@@ -6,8 +6,8 @@ import {
 } from 'recharts'
 import { listAccounts, createAccount, deleteAccount } from '../api/accounts'
 import { listTransactions, createTransaction, deleteTransaction } from '../api/transactions'
-import { listBudgets, createBudget, deleteBudget } from '../api/budgets'
-
+import { listBudgets, createBudget, deleteBudget, updateBudget } from '../api/budgets'
+import api from '../api/client'
 // ── useIsMobile hook ──────────────────────────────────────────────────────────
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -159,10 +159,10 @@ function CreateTransactionModal({ accounts, onClose, onCreated }) {
     try {
       if (form.type === 'transfer') {
         if (form.account_id === String(form.to_account_id)) { setError('Origin and destination accounts must be different.'); setLoading(false); return }
-        await createTransaction({ account_id: parseInt(form.account_id),    type: 'expense', category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer to ${accounts.find(a=>a.id===parseInt(form.to_account_id))?.name || ''}` })
-        await createTransaction({ account_id: parseInt(form.to_account_id), type: 'income',  category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer from ${accounts.find(a=>a.id===parseInt(form.account_id))?.name || ''}` })
+        await createTransaction({ account_id: parseInt(form.account_id),    type: 'expense', category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer to ${accounts.find(a=>a.id===parseInt(form.to_account_id))?.name || ''}`, date: tx.date })
+        await createTransaction({ account_id: parseInt(form.to_account_id), type: 'income',  category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer from ${accounts.find(a=>a.id===parseInt(form.account_id))?.name || ''}`, date: tx.date })
       } else {
-        await createTransaction({ account_id: parseInt(form.account_id), type: form.type, category: form.category, amount: parseFloat(form.amount), description: form.description || null })
+        await createTransaction({ account_id: parseInt(form.account_id), type: form.type, category: form.category, amount: parseFloat(form.amount), description: form.description || null, date: tx.date })
       }
       onCreated(); onClose()
     } catch (err) { setError(err.response?.data?.detail || 'Failed to create transaction.') }
@@ -415,17 +415,19 @@ export default function Dashboard() {
   const [predictView, setPredictView]     = useState('both') // 'historic' | 'forecast' | 'both'
 
   const runPredict = async (ticker) => {
-    if (!ticker) return
-    setpredictLoading(true); setPredictError(''); setPredictData(null)
-    try {
-      const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-      const res = await fetch(`${API}/predict/forecast?ticker=${ticker}&start=${predictPeriod}&periods=${predictHorizon}`)
-      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Error') }
-      const data = await res.json()
-      setPredictData(data)
-      setPredictTicker(ticker)
-    } catch(e) { setPredictError(e.message) }
-    finally { setpredictLoading(false) }
+  if (!ticker) return
+  setpredictLoading(true); setPredictError(''); setPredictData(null)
+  try {
+    const res = await api.get('/predict/forecast', {
+      params: { ticker, start: predictPeriod, periods: predictHorizon }
+    })
+    setPredictData(res.data)
+    setPredictTicker(ticker)
+  } catch(e) {
+    setPredictError(e.response?.data?.detail || e.message)
+  } finally {
+    setpredictLoading(false)
+  }
   }
   const [reportPeriod, setReportPeriod] = useState('monthly')
   const [chartType, setChartType] = useState('line')

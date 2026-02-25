@@ -7,6 +7,20 @@ from app.dependencies import get_current_user
 router = APIRouter(prefix="/budgets", tags=["Budgets"])
 budget_service = BudgetService(supabase)
 
+class UpdateBudgetRequest(BaseModel):
+    limit_amount: float
+
+@router.patch("/{budget_id}")
+def update_budget(budget_id: int, body: UpdateBudgetRequest, current_user: dict = Depends(get_current_user)):
+    try:
+        result = supabase.table("budgets").update({"limit_amount": body.limit_amount}).eq("id", budget_id).eq("user_id", current_user["user_id"]).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Budget not found")
+        return result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 class CreateBudgetRequest(BaseModel):
     category: str
