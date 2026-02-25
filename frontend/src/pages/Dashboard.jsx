@@ -122,6 +122,42 @@ function CreateBudgetModal({ onClose, onCreated }) {
   )
 }
 
+// ── BUG FIX: EditBudgetModal ──────────────────────────────────────────────────
+function EditBudgetModal({ budget, onClose, onSaved }) {
+  const [limitAmount, setLimitAmount] = useState(String(budget.limit_amount))
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const handleSubmit = async (e) => {
+    e.preventDefault(); setLoading(true); setError('')
+    try {
+      await updateBudget(budget.id, parseFloat(limitAmount))
+      await onSaved(); onClose()
+    } catch (err) { setError(err.response?.data?.detail || 'Failed to update budget.') }
+    finally { setLoading(false) }
+  }
+  return (
+    <div style={cs.overlay} onClick={onClose}>
+      <div style={cs.modal} onClick={e => e.stopPropagation()}>
+        <div style={cs.modalHeader}>
+          <h2 style={cs.modalTitle}>Edit Budget — {budget.category}</h2>
+          <button onClick={onClose} style={cs.iconBtn}><IconClose /></button>
+        </div>
+        <form onSubmit={handleSubmit} style={cs.form}>
+          <div style={cs.field}>
+            <label style={cs.label}>Monthly Limit (€)</label>
+            <input style={cs.input} type="number" step="0.01" placeholder="0.00"
+              value={limitAmount} onChange={e => setLimitAmount(e.target.value)} required />
+          </div>
+          {error && <p style={cs.error}>{error}</p>}
+          <button type="submit" disabled={loading} style={{ ...cs.submitBtn, opacity: loading ? 0.7 : 1 }}>
+            {loading ? 'Saving...' : 'Save Changes'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 const EXPENSE_CATS = ['Food & Drink','Transport','Housing','Health','Education','Entertainment','Shopping','Utilities','Travel','Gym','Insurance','Clothing','Electronics','Gifts','Other']
 const INCOME_CATS  = ['Salary','Freelance','Investment','Bonus','Rental','Refund','Other']
 
@@ -149,8 +185,10 @@ function CategorySelect({ type, value, onChange }) {
   )
 }
 
+// ── BUG FIX: CreateTransactionModal — removido tx.date (tx não existe aqui) ──
 function CreateTransactionModal({ accounts, onClose, onCreated }) {
-  const [form, setForm] = useState({ account_id: accounts[0]?.id || '', type: 'expense', category: '', amount: '', description: '', to_account_id: accounts[1]?.id || accounts[0]?.id || '' })
+  const today = new Date().toISOString().split('T')[0]
+  const [form, setForm] = useState({ account_id: accounts[0]?.id || '', type: 'expense', category: '', amount: '', description: '', to_account_id: accounts[1]?.id || accounts[0]?.id || '', date: today })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -159,10 +197,10 @@ function CreateTransactionModal({ accounts, onClose, onCreated }) {
     try {
       if (form.type === 'transfer') {
         if (form.account_id === String(form.to_account_id)) { setError('Origin and destination accounts must be different.'); setLoading(false); return }
-        await createTransaction({ account_id: parseInt(form.account_id),    type: 'expense', category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer to ${accounts.find(a=>a.id===parseInt(form.to_account_id))?.name || ''}`, date: tx.date })
-        await createTransaction({ account_id: parseInt(form.to_account_id), type: 'income',  category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer from ${accounts.find(a=>a.id===parseInt(form.account_id))?.name || ''}`, date: tx.date })
+        await createTransaction({ account_id: parseInt(form.account_id),    type: 'expense', category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer to ${accounts.find(a=>a.id===parseInt(form.to_account_id))?.name || ''}`, date: form.date })
+        await createTransaction({ account_id: parseInt(form.to_account_id), type: 'income',  category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer from ${accounts.find(a=>a.id===parseInt(form.account_id))?.name || ''}`, date: form.date })
       } else {
-        await createTransaction({ account_id: parseInt(form.account_id), type: form.type, category: form.category, amount: parseFloat(form.amount), description: form.description || null, date: tx.date })
+        await createTransaction({ account_id: parseInt(form.account_id), type: form.type, category: form.category, amount: parseFloat(form.amount), description: form.description || null, date: form.date })
       }
       onCreated(); onClose()
     } catch (err) { setError(err.response?.data?.detail || 'Failed to create transaction.') }
@@ -177,7 +215,7 @@ function CreateTransactionModal({ accounts, onClose, onCreated }) {
         <div style={cs.modalHeader}><h2 style={cs.modalTitle}>New Transaction</h2><button onClick={onClose} style={cs.iconBtn}><IconClose /></button></div>
         <form onSubmit={handleSubmit} style={cs.form}>
 
-          {/* Type selector - pill buttons */}
+          {/* Type selector */}
           <div style={cs.field}>
             <label style={cs.label}>Type</label>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -232,6 +270,12 @@ function CreateTransactionModal({ accounts, onClose, onCreated }) {
             </div>
           )}
 
+          {/* Date */}
+          <div style={cs.field}>
+            <label style={cs.label}>Date</label>
+            <input style={{ ...cs.input, colorScheme: 'dark' }} type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} required />
+          </div>
+
           {error && <p style={cs.error}>{error}</p>}
           <button type="submit" disabled={loading} style={{ ...cs.submitBtn, opacity: loading ? 0.7 : 1, background: typeColors[form.type] }}>
             {loading ? 'Saving...' : form.type === 'transfer' ? 'Transfer' : 'Save Transaction'}
@@ -263,6 +307,61 @@ function CreateGoalModal({ onClose, onCreated }) {
           </div>
           <div style={cs.field}><label style={cs.label}>Deadline</label><input style={{ ...cs.input, colorScheme: 'dark' }} type="date" value={form.deadline} onChange={e => setForm({ ...form, deadline: e.target.value })} /></div>
           <button type="submit" style={cs.submitBtn}>Create Goal</button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── BUG FIX: EditGoalModal ────────────────────────────────────────────────────
+function EditGoalModal({ goal, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    name: goal.name,
+    target: String(goal.target),
+    saved: String(goal.saved),
+    deadline: goal.deadline || '',
+  })
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    const goals = JSON.parse(localStorage.getItem('goals') || '[]')
+    const updated = goals.map(g => g.id === goal.id
+      ? { ...g, name: form.name, target: parseFloat(form.target), saved: parseFloat(form.saved) || 0, deadline: form.deadline }
+      : g
+    )
+    localStorage.setItem('goals', JSON.stringify(updated))
+    onSaved(); onClose()
+  }
+  return (
+    <div style={cs.overlay} onClick={onClose}>
+      <div style={cs.modal} onClick={e => e.stopPropagation()}>
+        <div style={cs.modalHeader}>
+          <h2 style={cs.modalTitle}>Edit Goal</h2>
+          <button onClick={onClose} style={cs.iconBtn}><IconClose /></button>
+        </div>
+        <form onSubmit={handleSubmit} style={cs.form}>
+          <div style={cs.field}>
+            <label style={cs.label}>Goal Name</label>
+            <input style={cs.input} placeholder="e.g. Emergency Fund" value={form.name}
+              onChange={e => setForm({ ...form, name: e.target.value })} required />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={cs.field}>
+              <label style={cs.label}>Target (€)</label>
+              <input style={cs.input} type="number" step="0.01" placeholder="5000.00"
+                value={form.target} onChange={e => setForm({ ...form, target: e.target.value })} required />
+            </div>
+            <div style={cs.field}>
+              <label style={cs.label}>Saved so far (€)</label>
+              <input style={cs.input} type="number" step="0.01" placeholder="0.00"
+                value={form.saved} onChange={e => setForm({ ...form, saved: e.target.value })} />
+            </div>
+          </div>
+          <div style={cs.field}>
+            <label style={cs.label}>Deadline</label>
+            <input style={{ ...cs.input, colorScheme: 'dark' }} type="date"
+              value={form.deadline} onChange={e => setForm({ ...form, deadline: e.target.value })} />
+          </div>
+          <button type="submit" style={cs.submitBtn}>Save Changes</button>
         </form>
       </div>
     </div>
@@ -309,31 +408,68 @@ function CreateCategoryModal({ onClose, onCreated }) {
   )
 }
 
-
+// ── BUG FIX: EditTransactionModal — preserva data original ────────────────────
 function EditTransactionModal({ tx, accounts, onClose, onSaved }) {
-  const [form, setForm] = useState({ account_id: tx.account_id, type: tx.type, category: tx.category, amount: tx.amount, description: tx.description || '', to_account_id: '' })
+  // A data original fica guardada numa const separada — nunca toca no form
+  const originalDate = tx.date || new Date().toISOString()
+
+  const [form, setForm] = useState({
+    account_id: tx.account_id,
+    type: tx.type,
+    category: tx.category,
+    amount: tx.amount,
+    description: tx.description || '',
+    to_account_id: '',
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
   const handleSubmit = async (e) => {
     e.preventDefault(); setLoading(true); setError('')
     try {
       await deleteTransaction(tx.id)
       if (form.type === 'transfer') {
         if (!form.to_account_id) { setError('Please select a destination account.'); setLoading(false); return }
-        await createTransaction({ account_id: parseInt(form.account_id),   type: 'expense', category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer to ${accounts.find(a=>a.id===parseInt(form.to_account_id))?.name||''}` })
-        await createTransaction({ account_id: parseInt(form.to_account_id), type: 'income', category: 'Transfer', amount: parseFloat(form.amount), description: `Transfer from ${accounts.find(a=>a.id===parseInt(form.account_id))?.name||''}` })
+        await createTransaction({
+          account_id: parseInt(form.account_id),
+          type: 'expense',
+          category: 'Transfer',
+          amount: parseFloat(form.amount),
+          description: `Transfer to ${accounts.find(a => a.id === parseInt(form.to_account_id))?.name || ''}`,
+          date: originalDate,   // ← data original preservada
+        })
+        await createTransaction({
+          account_id: parseInt(form.to_account_id),
+          type: 'income',
+          category: 'Transfer',
+          amount: parseFloat(form.amount),
+          description: `Transfer from ${accounts.find(a => a.id === parseInt(form.account_id))?.name || ''}`,
+          date: originalDate,   // ← data original preservada
+        })
       } else {
-        await createTransaction({ account_id: parseInt(form.account_id), type: form.type, category: form.category, amount: parseFloat(form.amount), description: form.description || null })
+        await createTransaction({
+          account_id: parseInt(form.account_id),
+          type: form.type,
+          category: form.category,
+          amount: parseFloat(form.amount),
+          description: form.description || null,
+          date: originalDate,   // ← data original preservada
+        })
       }
       onSaved(); onClose()
     } catch (err) { setError(err.response?.data?.detail || 'Failed to update.') }
     finally { setLoading(false) }
   }
+
   const typeColors = { expense: '#F04D4D', income: '#4D9FF0', transfer: '#F0A04D' }
+
   return (
     <div style={cs.overlay} onClick={onClose}>
       <div style={cs.modal} onClick={e => e.stopPropagation()}>
-        <div style={cs.modalHeader}><h2 style={cs.modalTitle}>Edit Transaction</h2><button onClick={onClose} style={cs.iconBtn}><IconClose /></button></div>
+        <div style={cs.modalHeader}>
+          <h2 style={cs.modalTitle}>Edit Transaction</h2>
+          <button onClick={onClose} style={cs.iconBtn}><IconClose /></button>
+        </div>
         <form onSubmit={handleSubmit} style={cs.form}>
           <div style={cs.field}>
             <label style={cs.label}>Type</label>
@@ -348,34 +484,57 @@ function EditTransactionModal({ tx, accounts, onClose, onSaved }) {
               ))}
             </div>
           </div>
-          <div style={cs.field}><label style={cs.label}>{form.type === 'transfer' ? 'From Account' : 'Account'}</label>
+
+          <div style={cs.field}>
+            <label style={cs.label}>{form.type === 'transfer' ? 'From Account' : 'Account'}</label>
             <select style={cs.input} value={form.account_id} onChange={e => setForm({ ...form, account_id: e.target.value })}>
               {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
             </select>
           </div>
+
           {form.type === 'transfer' && (
-            <div style={cs.field}><label style={cs.label}>To Account</label>
+            <div style={cs.field}>
+              <label style={cs.label}>To Account</label>
               <select style={cs.input} value={form.to_account_id} onChange={e => setForm({ ...form, to_account_id: e.target.value })}>
                 <option value="" disabled>Select destination...</option>
-                {accounts.filter(a => a.id !== parseInt(form.account_id)).map(acc => <option key={acc.id} value={acc.id}>{acc.name} ({fmtEur(acc.balance)})</option>)}
+                {accounts.filter(a => a.id !== parseInt(form.account_id)).map(acc => (
+                  <option key={acc.id} value={acc.id}>{acc.name} ({fmtEur(acc.balance)})</option>
+                ))}
               </select>
             </div>
           )}
-          <div style={cs.field}><label style={cs.label}>Amount (€)</label>
-            <input style={cs.input} type="number" step="0.01" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} required />
+
+          <div style={cs.field}>
+            <label style={cs.label}>Amount (€)</label>
+            <input style={cs.input} type="number" step="0.01" value={form.amount}
+              onChange={e => setForm({ ...form, amount: e.target.value })} required />
           </div>
+
           {form.type !== 'transfer' && (
-            <div style={cs.field}><label style={cs.label}>Category</label>
+            <div style={cs.field}>
+              <label style={cs.label}>Category</label>
               <CategorySelect type={form.type} value={form.category} onChange={v => setForm({ ...form, category: v })} />
             </div>
           )}
+
           {form.type !== 'transfer' && (
-            <div style={cs.field}><label style={cs.label}>Description <span style={{ color: '#444', fontSize: 11 }}>(optional)</span></label>
-              <input style={cs.input} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+            <div style={cs.field}>
+              <label style={cs.label}>Description <span style={{ color: '#444', fontSize: 11 }}>(optional)</span></label>
+              <input style={cs.input} value={form.description}
+                onChange={e => setForm({ ...form, description: e.target.value })} />
             </div>
           )}
+
+          {/* Data original mostrada apenas como informação, não editável */}
+          <div style={{ fontSize: 11, color: '#444', paddingTop: 2 }}>
+            📅 Date: {new Date(originalDate).toLocaleDateString('pt-PT')} (preserved)
+          </div>
+
           {error && <p style={cs.error}>{error}</p>}
-          <button type="submit" disabled={loading} style={{ ...cs.submitBtn, opacity: loading ? 0.7 : 1, background: typeColors[form.type] }}>{loading ? 'Saving...' : 'Save Changes'}</button>
+          <button type="submit" disabled={loading}
+            style={{ ...cs.submitBtn, opacity: loading ? 0.7 : 1, background: typeColors[form.type] }}>
+            {loading ? 'Saving...' : 'Save Changes'}
+          </button>
         </form>
       </div>
     </div>
@@ -394,6 +553,8 @@ export default function Dashboard() {
   const [accounts, setAccounts] = useState([])
   const [transactions, setTransactions] = useState([])
   const [budgets, setBudgets] = useState([])
+  const [editBudget, setEditBudget] = useState(null)
+  const [editGoal,   setEditGoal]   = useState(null)
   const [goals, setGoals] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
@@ -412,22 +573,22 @@ export default function Dashboard() {
   const [predictData, setPredictData]     = useState(null)
   const [predictPeriod, setPredictPeriod] = useState('2022-01-01')
   const [predictHorizon, setPredictHorizon] = useState(180)
-  const [predictView, setPredictView]     = useState('both') // 'historic' | 'forecast' | 'both'
+  const [predictView, setPredictView]     = useState('both')
 
   const runPredict = async (ticker) => {
-  if (!ticker) return
-  setpredictLoading(true); setPredictError(''); setPredictData(null)
-  try {
-    const res = await api.get('/predict/forecast', {
-      params: { ticker, start: predictPeriod, periods: predictHorizon }
-    })
-    setPredictData(res.data)
-    setPredictTicker(ticker)
-  } catch(e) {
-    setPredictError(e.response?.data?.detail || e.message)
-  } finally {
-    setpredictLoading(false)
-  }
+    if (!ticker) return
+    setpredictLoading(true); setPredictError(''); setPredictData(null)
+    try {
+      const res = await api.get('/predict/forecast', {
+        params: { ticker, start: predictPeriod, periods: predictHorizon }
+      })
+      setPredictData(res.data)
+      setPredictTicker(ticker)
+    } catch(e) {
+      setPredictError(e.response?.data?.detail || e.message)
+    } finally {
+      setpredictLoading(false)
+    }
   }
   const [reportPeriod, setReportPeriod] = useState('monthly')
   const [chartType, setChartType] = useState('line')
@@ -482,7 +643,6 @@ export default function Dashboard() {
     return result
   }, [transactions, currentMonth, currentYear])
 
-  // ── Reports data ─────────────────────────────────────────────────────────
   const weeklyReport = useMemo(() => {
     const weeks = []
     for (let w = 3; w >= 0; w--) {
@@ -524,7 +684,6 @@ export default function Dashboard() {
     })
   }, [transactions])
 
-  // ── Charts data ───────────────────────────────────────────────────────────
   const chartData = useMemo(() => {
     if (chartPeriod === '7days') return last7Days
     if (chartPeriod === '6months') return last6Months
@@ -541,7 +700,6 @@ export default function Dashboard() {
     return last6Months
   }, [chartPeriod, last7Days, last6Months, transactions])
 
-  // ── Handlers ─────────────────────────────────────────────────────────────
   const handleDelete       = async (id) => { if (!confirm('Delete this account?')) return; try { await deleteAccount(id); fetchAccounts() } catch { alert('Failed.') } }
   const handleDeleteTx     = async (id) => { if (!confirm('Delete?')) return; try { await deleteTransaction(id); fetchTransactions(); fetchAccounts() } catch { alert('Failed.') } }
   const handleDeleteBudget = async (id) => { if (!confirm('Delete?')) return; try { await deleteBudget(id); fetchBudgets() } catch { alert('Failed.') } }
@@ -619,7 +777,6 @@ export default function Dashboard() {
               <svg width="28" height="28" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#C9F04D" /><path d="M8 20L14 12L19 17L24 10" stroke="#0a0a0a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /><circle cx="24" cy="10" r="2" fill="#0a0a0a" /></svg>
               <span style={cs.logoText}>FinControl</span>
             </div>
-            {/* Group nav items */}
             <nav style={cs.nav}>
               <p style={cs.navGroup}>MAIN</p>
               {navItems.slice(0,4).map(item => (
@@ -786,7 +943,6 @@ export default function Dashboard() {
           {activeTab === 'accounts' && (
             <div>
               {selectedAccount ? (
-                // ── Account Detail View ──
                 (() => {
                   const acc = accounts.find(a => a.id === selectedAccount)
                   if (!acc) return null
@@ -794,8 +950,6 @@ export default function Dashboard() {
                   const accIncome   = accTxs.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0)
                   const accExpenses = accTxs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0)
                   const accColor    = accentColor(acc.type)
-
-                  // Last 30 days chart for this account
                   const accLast30 = []
                   for (let i = 29; i >= 0; i--) {
                     const d = new Date(); d.setDate(d.getDate() - i)
@@ -807,18 +961,14 @@ export default function Dashboard() {
                       expenses: accTxs.filter(t=>t.type==='expense' && t.date?.startsWith(dayStr)).reduce((s,t)=>s+Number(t.amount),0),
                     })
                   }
-
                   const accByCategory = (() => {
                     const map = {}
                     accTxs.filter(t=>t.type==='expense').forEach(t => { map[t.category]=(map[t.category]||0)+Number(t.amount) })
                     return Object.entries(map).map(([name,value])=>({name,value:Math.round(value*100)/100})).sort((a,b)=>b.value-a.value)
                   })()
-
                   const sortedAccTxs = [...accTxs].sort((a,b)=>new Date(b.date)-new Date(a.date))
-
                   return (
                     <div>
-                      {/* Back button + header */}
                       <div style={cs.pageHeader}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <button onClick={() => setSelectedAccount(null)} style={{ ...cs.monthBtn, padding: '8px 12px' }}>
@@ -838,8 +988,6 @@ export default function Dashboard() {
                           Delete Account
                         </button>
                       </div>
-
-                      {/* Stats row */}
                       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
                         {[
                           { label: 'Current Balance', value: fmtEur(acc.balance),         color: accColor },
@@ -853,8 +1001,6 @@ export default function Dashboard() {
                           </div>
                         ))}
                       </div>
-
-                      {/* Charts row */}
                       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 14, marginBottom: 14 }}>
                         <div style={{ ...cs.section, flex: 2 }}>
                           <h2 style={cs.sectionTitle}>Income vs Expenses (Last 30 days)</h2>
@@ -896,8 +1042,6 @@ export default function Dashboard() {
                           )}
                         </div>
                       </div>
-
-                      {/* Transactions list */}
                       <div style={cs.section}>
                         <h2 style={cs.sectionTitle}>All Transactions ({sortedAccTxs.length})</h2>
                         {sortedAccTxs.length === 0 ? <p style={cs.muted}>No transactions for this account.</p> : sortedAccTxs.map((tx, i) => {
@@ -925,7 +1069,6 @@ export default function Dashboard() {
                   )
                 })()
               ) : (
-                // ── Accounts List ──
                 <div>
                   <div style={cs.pageHeader}>
                     <h1 style={{ ...cs.pageTitle, fontSize: isMobile ? 20 : 24 }}>Accounts</h1>
@@ -967,16 +1110,12 @@ export default function Dashboard() {
               <div style={{ marginBottom: 16 }}>
                 <h1 style={{ ...cs.pageTitle, fontSize: isMobile ? 20 : 24 }}>Transactions</h1>
               </div>
-
               {transactions.length === 0 ? (
                 <div style={cs.empty}><p style={cs.muted}>No transactions yet.</p></div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 14, alignItems: 'flex-start', minHeight: '100%' }}>
-
-                  {/* Left: grouped list */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {(() => {
-                      // group by date
                       const grouped = {}
                       const sorted = [...monthTxs].sort((a,b) => new Date(b.date) - new Date(a.date))
                       sorted.forEach(tx => {
@@ -1009,7 +1148,6 @@ export default function Dashboard() {
                         const dayExpenses = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0)
                         return (
                           <div key={date} style={{ marginBottom: 6 }}>
-                            {/* Day header */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', marginBottom: 2 }}>
                               <span style={{ fontSize: 12, fontWeight: 700, color: '#666', letterSpacing: 0.3 }}>{getDayLabel(date)}</span>
                               <div style={{ display: 'flex', gap: 12 }}>
@@ -1024,7 +1162,6 @@ export default function Dashboard() {
                                 const color    = tx.type === 'income' ? '#4D9FF0' : '#F04D4D'
                                 return (
                                   <div key={tx.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < txs.length-1 ? '1px solid #161616' : 'none', width: '100%' }}>
-                                    {/* Left: icon + text */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                                       <div style={{ width: 32, height: 32, borderRadius: '50%', background: catColor + '22', border: `1.5px solid ${catColor}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                         <span style={{ fontSize: 13, fontWeight: 800, color: catColor }}>{getCatInitial(tx.category)}</span>
@@ -1036,7 +1173,6 @@ export default function Dashboard() {
                                         </p>
                                       </div>
                                     </div>
-                                    {/* Right: value + edit + trash */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 12 }}>
                                       <span style={{ color, fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap' }}>{tx.type === 'income' ? '+' : '-'}{fmtEur(tx.amount)}</span>
                                       <button onClick={() => setEditTx(tx)} style={{ ...cs.deleteBtn, opacity: 0.45, padding: '2px 4px' }}><IconEdit /></button>
@@ -1052,10 +1188,7 @@ export default function Dashboard() {
                     })()}
                   </div>
 
-                  {/* Right: charts panel */}
                   <div style={{ width: isMobile ? '100%' : '38%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10, position: 'sticky', top: 16 }}>
-
-                    {/* Summary card - compact horizontal */}
                     <div style={{ ...cs.section, padding: '12px 16px' }}>
                       <h2 style={{ ...cs.sectionTitle, marginBottom: 8 }}>{MONTHS[currentMonth]} Summary</h2>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -1072,8 +1205,6 @@ export default function Dashboard() {
                         ))}
                       </div>
                     </div>
-
-                    {/* Combined Income + Expenses chart */}
                     <div style={{ ...cs.section, padding: '12px 16px' }}>
                       <h2 style={{ ...cs.sectionTitle, marginBottom: 6 }}>Last 7 Days</h2>
                       <ResponsiveContainer width="100%" height={160}>
@@ -1094,8 +1225,6 @@ export default function Dashboard() {
                         <span style={{ fontSize: 10, color: '#F04D4D', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 2, background: '#F04D4D', display: 'inline-block', borderRadius: 1 }}/>Expenses</span>
                       </div>
                     </div>
-
-                    {/* Category pie */}
                     <div style={{ ...cs.section, padding: '12px 16px' }}>
                       <h2 style={{ ...cs.sectionTitle, marginBottom: 6 }}>By Category</h2>
                       {expensesByCategory.length === 0 ? <div style={cs.chartEmpty}>No expenses</div> : (
@@ -1158,6 +1287,7 @@ export default function Dashboard() {
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <span style={{ fontSize: 13, color: isOver ? '#F04D4D' : '#4D9FF0', fontWeight: 600 }}>{isOver ? 'Over!' : `${fmtEur(Number(b.limit_amount)-Number(b.spent))} left`}</span>
+                            <button onClick={() => setEditBudget(b)} style={{ ...cs.deleteBtn, color: '#4D9FF0' }}><IconEdit /></button>
                             <button onClick={() => handleDeleteBudget(b.id)} style={cs.deleteBtn}><IconTrash /></button>
                           </div>
                         </div>
@@ -1189,7 +1319,6 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {/* Summary */}
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 12 }}>
                     <div style={cs.statCard}><p style={cs.statLabel}>Total Goals</p><p style={{ ...cs.statValue, fontSize: isMobile ? 16 : 20 }}>{goals.length}</p></div>
                     <div style={cs.statCard}><p style={cs.statLabel}>Total Target</p><p style={{ ...cs.statValue, fontSize: isMobile ? 16 : 20 }}>{fmtEur(goals.reduce((s,g)=>s+g.target,0))}</p></div>
@@ -1212,6 +1341,7 @@ export default function Dashboard() {
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <span style={{ fontSize: 20, fontWeight: 800, color: barColor }}>{pct}%</span>
+                            <button onClick={() => setEditGoal(goal)} style={{ ...cs.deleteBtn, color: '#4D9FF0' }}><IconEdit /></button>
                             <button onClick={() => handleDeleteGoal(goal.id)} style={cs.deleteBtn}><IconTrash /></button>
                           </div>
                         </div>
@@ -1242,8 +1372,6 @@ export default function Dashboard() {
                   ))}
                 </div>
               </div>
-
-              {/* Summary cards */}
               <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: 12, marginBottom: 16 }}>
                 {(() => {
                   const rows = reportRows
@@ -1262,8 +1390,6 @@ export default function Dashboard() {
                   ))
                 })()}
               </div>
-
-              {/* Chart */}
               <div style={{ ...cs.section, marginBottom: 14 }}>
                 <h2 style={cs.sectionTitle}>{reportPeriod === 'weekly' ? 'Weekly' : reportPeriod === 'monthly' ? 'Monthly' : 'Annual'} Overview</h2>
                 <ResponsiveContainer width="100%" height={isMobile ? 180 : 200}>
@@ -1280,8 +1406,6 @@ export default function Dashboard() {
                   <span style={{ fontSize: 11, color: '#F04D4D', display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 10, height: 10, background: '#F04D4D', borderRadius: 2, display: 'inline-block' }} />Expenses</span>
                 </div>
               </div>
-
-              {/* Table */}
               <div style={cs.section}>
                 <h2 style={cs.sectionTitle}>Detailed Table</h2>
                 <div style={{ overflowX: 'auto' }}>
@@ -1319,8 +1443,6 @@ export default function Dashboard() {
               <div style={cs.pageHeader}>
                 <h1 style={{ ...cs.pageTitle, fontSize: isMobile ? 20 : 24 }}>Charts</h1>
               </div>
-
-              {/* Controls */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {[['line','Line'],['bar','Bar'],['area','Area']].map(([v,l]) => (
@@ -1333,8 +1455,6 @@ export default function Dashboard() {
                   ))}
                 </div>
               </div>
-
-              {/* Main chart */}
               <div style={{ ...cs.section, marginBottom: 14 }}>
                 <h2 style={cs.sectionTitle}>Income vs Expenses</h2>
                 <ResponsiveContainer width="100%" height={isMobile ? 200 : 280}>
@@ -1374,8 +1494,6 @@ export default function Dashboard() {
                   <span style={{ fontSize: 11, color: '#F04D4D', display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 10, height: 2, background: '#F04D4D', display: 'inline-block' }} />Expenses</span>
                 </div>
               </div>
-
-              {/* Pie chart */}
               <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 14 }}>
                 <div style={{ ...cs.section, flex: 1 }}>
                   <h2 style={cs.sectionTitle}>Expenses by Category ({MONTHS[currentMonth].slice(0,3)})</h2>
@@ -1415,8 +1533,6 @@ export default function Dashboard() {
                 <h1 style={{ ...cs.pageTitle, fontSize: isMobile ? 20 : 24 }}>Categories</h1>
                 <button onClick={() => setShowCategoryModal(true)} style={cs.primaryBtn}><IconPlus /> New</button>
               </div>
-
-              {/* Default categories */}
               <div style={{ ...cs.section, marginBottom: 14 }}>
                 <h2 style={cs.sectionTitle}>Default Categories</h2>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -1442,8 +1558,6 @@ export default function Dashboard() {
                   ))}
                 </div>
               </div>
-
-              {/* Custom categories */}
               <div style={cs.section}>
                 <h2 style={cs.sectionTitle}>Custom Categories ({categories.length})</h2>
                 {categories.length === 0 ? (
@@ -1475,22 +1589,14 @@ export default function Dashboard() {
               <div style={cs.pageHeader}>
                 <h1 style={{ ...cs.pageTitle, fontSize: isMobile ? 20 : 24 }}>Tools</h1>
               </div>
-
-              {/* Export */}
               <div style={{ ...cs.section, marginBottom: 14 }}>
                 <h2 style={cs.sectionTitle}>Export Data</h2>
                 <p style={{ color: '#666', fontSize: 13, marginBottom: 16 }}>Download your financial data in different formats.</p>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  <button onClick={exportCSV} style={{ ...cs.primaryBtn, gap: 8 }}>
-                    <IconDownload /> Export Transactions (CSV)
-                  </button>
-                  <button onClick={exportJSON} style={{ ...cs.ghostBtn, gap: 8 }}>
-                    <IconDownload /> Full Backup (JSON)
-                  </button>
+                  <button onClick={exportCSV} style={{ ...cs.primaryBtn, gap: 8 }}><IconDownload /> Export Transactions (CSV)</button>
+                  <button onClick={exportJSON} style={{ ...cs.ghostBtn, gap: 8 }}><IconDownload /> Full Backup (JSON)</button>
                 </div>
               </div>
-
-              {/* Stats */}
               <div style={{ ...cs.section, marginBottom: 14 }}>
                 <h2 style={cs.sectionTitle}>Data Summary</h2>
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12 }}>
@@ -1507,8 +1613,6 @@ export default function Dashboard() {
                   ))}
                 </div>
               </div>
-
-              {/* Danger zone */}
               <div style={{ ...cs.section, borderColor: '#F04D4D33' }}>
                 <h2 style={{ ...cs.sectionTitle, color: '#F04D4D' }}>Danger Zone</h2>
                 <p style={{ color: '#666', fontSize: 13, marginBottom: 16 }}>These actions are irreversible. Please proceed with caution.</p>
@@ -1521,14 +1625,11 @@ export default function Dashboard() {
             </div>
           )}
 
-
-          {/* ── PREDICT INVESTMENTS ── */}
+          {/* ── PREDICT ── */}
           {activeTab === 'predict' && (
             <div>
               <h1 style={{ ...cs.pageTitle, fontSize: isMobile ? 20 : 24, marginBottom: 4 }}>Predict Investments</h1>
               <p style={{ color: '#555', fontSize: 12, marginBottom: 20 }}>AI-powered stock forecasting using NeuralProphet. Enter any ticker symbol (e.g. AAPL, NVDA, BTC-USD)</p>
-
-              {/* Search + config bar */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20, alignItems: 'flex-end' }}>
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <label style={cs.label}>Ticker Symbol</label>
@@ -1564,8 +1665,6 @@ export default function Dashboard() {
                   </select>
                 </div>
               </div>
-
-              {/* Popular tickers quick-pick */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
                 {['AAPL','NVDA','MSFT','GOOGL','TSLA','BTC-USD','ETH-USD','SPY','AMZN','META'].map(t => (
                   <button key={t} onClick={() => { setPredictSearch(t); runPredict(t) }}
@@ -1576,8 +1675,6 @@ export default function Dashboard() {
                   </button>
                 ))}
               </div>
-
-              {/* Loading state */}
               {predictLoading && (
                 <div style={{ ...cs.section, padding: 40, textAlign: 'center' }}>
                   <div style={{ fontSize: 32, marginBottom: 12 }}>🧠</div>
@@ -1585,31 +1682,21 @@ export default function Dashboard() {
                   <p style={{ color: '#555', fontSize: 12 }}>Downloading data, fitting model and generating forecast. This may take 20–60 seconds.</p>
                 </div>
               )}
-
-              {/* Error */}
               {predictError && !predictLoading && (
                 <div style={{ ...cs.error, marginBottom: 16 }}>⚠️ {predictError}</div>
               )}
-
-              {/* Results */}
               {predictData && !predictLoading && (() => {
                 const { ticker, company_name, currency, historic, forecast, metrics, current_price, price_change_pct } = predictData
                 const sym = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency + ' '
-
-                // Build chart data: merge historic actual + predicted + future forecast
                 const chartData = [
                   ...historic.slice(-180).map(d => ({ date: d.date, actual: d.actual, fitted: d.predicted })),
                   ...forecast.map(d => ({ date: d.date, forecast: d.predicted }))
                 ]
-
                 const lastActual   = historic[historic.length - 1]?.actual || 0
                 const lastForecast = forecast[forecast.length - 1]?.predicted || 0
                 const upward       = price_change_pct >= 0
-
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-                    {/* Header info cards */}
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 10 }}>
                       {[
                         { label: 'Ticker',         value: ticker,                    color: '#C9F04D' },
@@ -1623,8 +1710,6 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
-
-                    {/* Company + metrics row */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
                       <div>
                         <p style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{company_name}</p>
@@ -1643,8 +1728,6 @@ export default function Dashboard() {
                         ))}
                       </div>
                     </div>
-
-                    {/* View toggle */}
                     <div style={{ display: 'flex', gap: 6 }}>
                       {[['both','Historic + Forecast'],['historic','Historic Only'],['forecast','Forecast Only']].map(([v,l]) => (
                         <button key={v} onClick={() => setPredictView(v)}
@@ -1655,8 +1738,6 @@ export default function Dashboard() {
                         </button>
                       ))}
                     </div>
-
-                    {/* Main chart */}
                     <div style={{ ...cs.section, padding: 20 }}>
                       <div style={{ display: 'flex', gap: 16, marginBottom: 10, flexWrap: 'wrap' }}>
                         {predictView !== 'forecast' && <span style={{ fontSize: 11, color: '#4DCB71', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 16, height: 2, background: '#4DCB71', display: 'inline-block', borderRadius: 1 }}/>Actual Price</span>}
@@ -1686,16 +1767,12 @@ export default function Dashboard() {
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
-
-                    {/* Disclaimer */}
                     <p style={{ color: '#333', fontSize: 10, textAlign: 'center', margin: 0 }}>
                       ⚠️ This is a ML-based prediction for educational purposes only. Not financial advice. Past performance does not guarantee future results.
                     </p>
                   </div>
                 )
               })()}
-
-              {/* Empty state */}
               {!predictData && !predictLoading && !predictError && (
                 <div style={{ ...cs.section, padding: '48px 24px', textAlign: 'center' }}>
                   <div style={{ fontSize: 48, marginBottom: 12 }}>📈</div>
@@ -1712,7 +1789,6 @@ export default function Dashboard() {
               <div style={cs.pageHeader}>
                 <h1 style={{ ...cs.pageTitle, fontSize: isMobile ? 20 : 24 }}>Settings</h1>
               </div>
-
               <form onSubmit={handleSaveSettings}>
                 <div style={{ ...cs.section, marginBottom: 14 }}>
                   <h2 style={cs.sectionTitle}>Profile</h2>
@@ -1730,7 +1806,6 @@ export default function Dashboard() {
                     <div style={cs.field}><label style={cs.label}>Email</label><input style={cs.input} type="email" placeholder="your@email.com" value={settingsForm.email} onChange={e => setSettingsForm({ ...settingsForm, email: e.target.value })} /></div>
                   </div>
                 </div>
-
                 <div style={{ ...cs.section, marginBottom: 14 }}>
                   <h2 style={cs.sectionTitle}>Change Password</h2>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 480 }}>
@@ -1738,7 +1813,6 @@ export default function Dashboard() {
                     <div style={cs.field}><label style={cs.label}>Confirm Password</label><input style={cs.input} type="password" placeholder="••••••••" value={settingsForm.passwordConfirm} onChange={e => setSettingsForm({ ...settingsForm, passwordConfirm: e.target.value })} /></div>
                   </div>
                 </div>
-
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <button type="submit" style={cs.primaryBtn}>Save Changes</button>
                   {settingsSaved && <span style={{ color: '#C9F04D', fontSize: 13, fontWeight: 600 }}>✓ Changes saved!</span>}
@@ -1750,7 +1824,7 @@ export default function Dashboard() {
         </main>
       </div>
 
-      {/* Mobile Bottom Nav - scrollable with all tabs */}
+      {/* Mobile Bottom Nav */}
       {isMobile && (
         <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#111', borderTop: '1px solid #1e1e1e', zIndex: 20 }}>
           <div style={{ display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', padding: '6px 0 8px' }}>
@@ -1767,12 +1841,14 @@ export default function Dashboard() {
         </nav>
       )}
 
-      {showModal        && <CreateAccountModal     onClose={() => setShowModal(false)}        onCreated={fetchAccounts} />}
-      {showTxModal      && <CreateTransactionModal  accounts={accounts} onClose={() => setShowTxModal(false)} onCreated={() => { fetchTransactions(); fetchAccounts(); fetchBudgets() }} />}
-      {showBudgetModal  && <CreateBudgetModal       onClose={() => setShowBudgetModal(false)}  onCreated={fetchBudgets} />}
-      {showGoalModal    && <CreateGoalModal         onClose={() => setShowGoalModal(false)}    onCreated={fetchGoals} />}
+      {showModal         && <CreateAccountModal    onClose={() => setShowModal(false)}         onCreated={fetchAccounts} />}
+      {showTxModal       && <CreateTransactionModal accounts={accounts} onClose={() => setShowTxModal(false)} onCreated={() => { fetchTransactions(); fetchAccounts(); fetchBudgets() }} />}
+      {showBudgetModal   && <CreateBudgetModal      onClose={() => setShowBudgetModal(false)}   onCreated={fetchBudgets} />}
+      {showGoalModal     && <CreateGoalModal        onClose={() => setShowGoalModal(false)}     onCreated={fetchGoals} />}
       {showCategoryModal && <CreateCategoryModal    onClose={() => setShowCategoryModal(false)} onCreated={fetchCategories} />}
-      {editTx && <EditTransactionModal tx={editTx} accounts={accounts} onClose={() => setEditTx(null)} onSaved={() => { fetchTransactions(); fetchAccounts(); fetchBudgets() }} />}
+      {editTx     && <EditTransactionModal tx={editTx}         accounts={accounts} onClose={() => setEditTx(null)}     onSaved={() => { fetchTransactions(); fetchAccounts(); fetchBudgets() }} />}
+      {editBudget && <EditBudgetModal      budget={editBudget}                     onClose={() => setEditBudget(null)} onSaved={fetchBudgets} />}
+      {editGoal   && <EditGoalModal        goal={editGoal}                         onClose={() => setEditGoal(null)}   onSaved={fetchGoals} />}
     </div>
   )
 }

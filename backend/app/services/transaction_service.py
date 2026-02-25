@@ -53,7 +53,7 @@ class TransactionService:
             "type": tx_type.lower(),
             "category": category,
             "description": description,
-            "date": date if date else datetime.utcnow().isoformat()
+            "date": (date + "T12:00:00") if date and "T" not in date else (date if date else datetime.utcnow().isoformat())
         }
 
         try:
