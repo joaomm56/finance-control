@@ -157,7 +157,3 @@ Fully responsive — works on desktop and mobile with a dedicated bottom navigat
 Built from scratch as a personal project to deepen full-stack skills across React, FastAPI, PostgreSQL and machine learning integration.
 
 ---
-
-## 📄 License
-
-MIT
