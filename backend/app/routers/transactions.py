@@ -44,7 +44,8 @@ def create_transaction(body: CreateTransactionRequest, current_user: dict = Depe
             amount=body.amount,
             tx_type=body.type,
             category=body.category,
-            description=body.description
+            description=body.description,
+            date=body.date,
         )
         return tx
     except ValueError as e:
