@@ -151,18 +151,6 @@ Fully responsive — works on desktop and mobile with a dedicated bottom navigat
 
 ---
 
-## 📸 Screenshots
-
-> · Dashboard
-
-> · Transactions
-
-> · Budgets
-
-> · AI Predictions
-
-
----
 
 ## 👨‍💻 Author
 
