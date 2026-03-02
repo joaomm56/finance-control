@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { Analytics } from '@vercel/analytics/react'
 
 // Load DM Sans font from Google Fonts
 const link = document.createElement('link')
