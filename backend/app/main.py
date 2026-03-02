@@ -15,6 +15,7 @@ app.add_middleware(
     allow_origins=[
         "https://finance-controlj.netlify.app",
         "http://localhost:5173"
+        "https://finance-controlj.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
