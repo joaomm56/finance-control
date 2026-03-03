@@ -1,6 +1,3 @@
-server:
-  http_listen_port: 8080
-
 metrics:
   global:
     scrape_interval: 30s
