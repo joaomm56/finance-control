@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 from app.routers import auth, accounts, transactions, budgets, budgets, predict
 
 app = FastAPI(
@@ -21,6 +22,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Prometheus ──────────────────────────────────────────────
+Instrumentator().instrument(app).expose(app)
 
 # ==========================================================
 # Routers
