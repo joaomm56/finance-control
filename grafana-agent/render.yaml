@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: fincontrol-grafana-agent
+    runtime: docker
+    dockerfilePath: ./grafana-agent/Dockerfile
+    plan: free
+    envVars:
+      - key: BACKEND_URL
+        value: <teu-backend>.onrender.com   # ← substitui pelo teu domínio Render (sem https://)
+      - key: GRAFANA_REMOTE_WRITE_URL
+        sync: false   # preencher no dashboard do Render
+      - key: GRAFANA_USER_ID
+        sync: false   # preencher no dashboard do Render
+      - key: GRAFANA_API_KEY
+        sync: false   # preencher no dashboard do Render
